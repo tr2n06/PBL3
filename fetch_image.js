@@ -1,0 +1,1 @@
+fetch('https://sgtt.thesaigontimes.vn/dip-cao-diem-he-cu-90-giay-co-1-may-bay-cat-canh-tai-san-bay-noi-bai/').then(r=>r.text()).then(t=>{ const m = t.match(/<meta property="og:image" content="([^"]+)"/); console.log(m ? m[1] : 'not found'); })
