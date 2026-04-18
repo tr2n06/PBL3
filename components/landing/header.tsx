@@ -55,6 +55,7 @@ export function Header() {
   const navLinks = [
     { href: "/#destinations", label: "Destinations" },
     { href: "/#deals",        label: "Hot Deals"     },
+    { href: "/#deals",        label: "Book Flight", highlight: true },
     { href: "/faq",           label: "FAQ"            },
     { href: "/#contact",      label: "Contact"        },
   ];
@@ -71,13 +72,20 @@ export function Header() {
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-8 md:flex">
-          {navLinks.map((link) => (
-            <Link key={link.href} href={link.href}
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-              {link.label}
-            </Link>
-          ))}
+        <nav className="hidden items-center gap-6 md:flex">
+          {navLinks.map((link) =>
+            link.highlight ? (
+              <Link key={link.label} href={link.href}
+                className="rounded-lg bg-[#0b5c66] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#094a52] flex items-center gap-1.5">
+                ✈ {link.label}
+              </Link>
+            ) : (
+              <Link key={link.label} href={link.href}
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                {link.label}
+              </Link>
+            )
+          )}
         </nav>
 
         {/* Desktop auth */}
@@ -164,10 +172,10 @@ export function Header() {
               </Link>
               <nav className="flex flex-col gap-4">
                 {navLinks.map((link) => (
-                  <Link key={link.href} href={link.href}
-                    className="text-lg font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  <Link key={link.label} href={link.href}
+                    className={`text-lg font-medium transition-colors hover:text-foreground ${link.highlight ? "text-[#0b5c66] font-bold" : "text-muted-foreground"}`}
                     onClick={() => setIsOpen(false)}>
-                    {link.label}
+                    {link.highlight ? `✈ ${link.label}` : link.label}
                   </Link>
                 ))}
               </nav>

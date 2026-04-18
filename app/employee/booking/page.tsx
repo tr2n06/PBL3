@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -76,8 +76,8 @@ const SEAT_SURCHARGE: Record<SeatType, number> = {
 const SEAT_TYPE_INFO: Record<SeatType, { label: string; icon: string; available: string; dot: string; labelColor: string }> = {
   window: {
     label: "Window", icon: "🪟",
-    available: "border-blue-400 bg-blue-50 text-blue-800 hover:bg-blue-100",
-    dot: "bg-blue-400", labelColor: "text-blue-600 bg-blue-50",
+    available: "border-[#3a6090] bg-[#eef3f9] text-[#1a3557] hover:bg-[#dce8f4]",
+    dot: "bg-[#3a6090]", labelColor: "text-[#1e4069] bg-[#eef3f9]",
   },
   aisle: {
     label: "Aisle", icon: "↔",
@@ -121,8 +121,8 @@ const CLASS_LABELS: Record<TicketClass, string> = {
   economy: "Economy", business: "Premium Economy", firstClass: "Business",
 };
 const CLASS_THEME: Record<TicketClass, { card: string; text: string }> = {
-  economy: { card: "bg-[#0b5c66]", text: "text-white" },
-  business: { card: "bg-[#5a8fa3]", text: "text-white" },
+  economy: { card: "bg-[#1e4069]", text: "text-white" },
+  business: { card: "bg-[#f07832]", text: "text-white" },
   firstClass: { card: "bg-[#dfad36]", text: "text-gray-900" },
 };
 
@@ -220,7 +220,7 @@ function AirplaneSeatMap({ ticketClass, flightId, passengerCount, selectedSeats,
     const selected = selectedSeats.includes(id);
     let cls = "w-10 h-10 rounded-xl text-xs font-bold border-2 transition-all duration-150 flex items-center justify-center ";
     if (occupied) cls += "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed";
-    else if (selected) cls += "bg-[#0b5c66] border-[#0b5c66] text-white scale-110 shadow-lg ring-2 ring-[#0b5c66]/30";
+    else if (selected) cls += "bg-[#1a3557] border-[#1a3557] text-white scale-110 shadow-lg ring-2 ring-[#3a6090]/30";
     else cls += SEAT_TYPE_INFO[type].available + " cursor-pointer hover:scale-105 hover:shadow-sm";
     return (
       <button type="button" disabled={occupied} onClick={() => onToggle(id, type)}
@@ -350,8 +350,8 @@ function AirplaneSeatMap({ ticketClass, flightId, passengerCount, selectedSeats,
 
       {/* Selection summary */}
       {selectedSeats.length > 0 && (
-        <div className="mt-3 rounded-xl border border-[#0b5c66]/20 bg-[#0b5c66]/5 p-3 space-y-1.5">
-          <p className="text-xs font-semibold text-[#0b5c66]">Selected Seats:</p>
+        <div className="mt-3 rounded-xl border border-[#c3d4e8] bg-[#eef3f9] p-3 space-y-1.5">
+          <p className="text-xs font-semibold text-[#1a3557]">Selected Seats:</p>
           {selectedSeats.map((seat, i) => {
             const t = selectedTypes[i] ?? "middle";
             return (
@@ -361,12 +361,12 @@ function AirplaneSeatMap({ ticketClass, flightId, passengerCount, selectedSeats,
               </div>
             );
           })}
-          <div className="flex justify-between font-bold text-xs border-t pt-1.5 text-[#0b5c66]">
+          <div className="flex justify-between font-bold text-xs border-t pt-1.5 text-[#1a3557]">
             <span>Seat fee total:</span><span>{formatVND(totalSurcharge)} VND</span>
           </div>
         </div>
       )}
-      <p className={`text-xs text-center mt-2 font-semibold ${ready ? "text-[#0b5c66]" : "text-amber-600"}`}>
+      <p className={`text-xs text-center mt-2 font-semibold ${ready ? "text-[#1a3557]" : "text-amber-600"}`}>
         {ready ? `✓ ${passengerCount} seat(s) selected` : `Please select ${passengerCount - selectedSeats.length} more seat(s)`}
       </p>
     </div>
@@ -671,160 +671,167 @@ export default function EmployeeBookingPage() {
     const total = basePrices.reduce((a,b)=>a+b, 0) + totalSurcharge;
 
     return (
-      <div className="space-y-5 animate-in fade-in duration-300">
-        <div className="flex items-center gap-3">
+      <div className="animate-in fade-in duration-300">
+        {/* Page header */}
+        <div className="flex items-center gap-3 mb-6">
           <Button variant="ghost" size="icon" onClick={() => { setView("search"); setDialogOpen(false); }}>
             <ArrowRight className="w-5 h-5 rotate-180" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Passenger Information</h1>
             <p className="text-sm text-gray-500">
-              {selectedFlight?.departure.code} → {selectedFlight?.arrival.code} · Multiple Classes · {passCount} passenger(s)
+              {selectedFlight?.departure.code} → {selectedFlight?.arrival.code} · {passCount} passenger(s)
             </p>
           </div>
         </div>
 
-        {selectedFlight && (
-          <div className={`${theme.card} ${theme.text} rounded-2xl p-4 flex items-center justify-between`}>
-            <div className="flex items-center gap-5">
-              <div className="text-center"><p className="text-2xl font-bold">{selectedFlight.departure.code}</p><p className="text-xs opacity-75">{selectedFlight.departure.time}</p></div>
-              <div className="flex items-center gap-2 opacity-60"><div className="h-px w-10 bg-white/60" /><Plane className="w-4 h-4" /><div className="h-px w-10 bg-white/60" /></div>
-              <div className="text-center"><p className="text-2xl font-bold">{selectedFlight.arrival.code}</p><p className="text-xs opacity-75">{selectedFlight.arrival.time}</p></div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs opacity-75">Total due</p>
-              <p className="text-lg font-bold">{formatVND(total)} VND</p>
-              {!usedSeatSelection && <p className="text-[10px] opacity-60">Seat auto-assigned · no extra charge</p>}
-            </div>
-          </div>
-        )}
+        <div className="grid lg:grid-cols-3 gap-8 items-start">
+          {/* Left: forms */}
+          <div className="lg:col-span-2">
 
         <form onSubmit={handleSubmitInfo} className="space-y-4">
-          {Array.from({ length: passCount }).map((_, idx) => (
-            <Card key={idx} className="overflow-hidden border border-blue-100">
-              <CardHeader className="bg-[#b3ddef]/30 pb-3 border-b border-blue-100">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-[#0b5c66] text-white flex items-center justify-center text-sm font-bold">{idx + 1}</div>
-                  Passenger {idx + 1}
-                  <Badge variant="outline" className="ml-auto font-mono text-[#0b5c66] border-[#0b5c66] text-xs">
-                    Seat: {chosenSeats[idx] || "Auto"}
-                    {usedSeatSelection && chosenTypes[idx] ? ` (${SEAT_TYPE_INFO[chosenTypes[idx]].label})` : ""}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-5 bg-white space-y-4">
-                {/* Title + Name row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="space-y-1">
-                    <Label>Title <span className="text-red-500">*</span></Label>
-                    <Select value={passForms[idx]?.title ?? "Mr"} onValueChange={(v) => updatePassenger(idx, "title", v)}>
-                      <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                      <SelectContent>{["Mr", "Mrs", "Ms", "Dr", "Prof"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                    </Select>
+            {Array.from({ length: passCount }).map((_, idx) => (
+              <Card key={idx} className="overflow-hidden border border-[#dce8f4] shadow-sm">
+                <CardHeader className="bg-[#eef3f9]/60 pb-3 border-b border-[#dce8f4]">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-[#1a3557] text-white flex items-center justify-center text-sm font-bold">{idx + 1}</div>
+                    Passenger {idx + 1}
+                    <Badge variant="outline" className="ml-auto font-mono text-[#1a3557] border-[#3a6090] text-xs">
+                      Seat: {chosenSeats[idx] || "Auto"}
+                      {usedSeatSelection && chosenTypes[idx] ? ` (${SEAT_TYPE_INFO[chosenTypes[idx]].label})` : ""}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-5 bg-white space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="space-y-1">
+                      <Label>Title <span className="text-red-500">*</span></Label>
+                      <Select value={passForms[idx]?.title ?? "Mr"} onValueChange={(v) => updatePassenger(idx, "title", v)}>
+                        <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                        <SelectContent>{["Mr", "Mrs", "Ms", "Dr", "Prof"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Last Name <span className="text-red-500">*</span></Label>
+                      <Input required placeholder="e.g. NGUYEN" value={passForms[idx]?.lastName ?? ""} onChange={(e) => handleNameInput(idx, "lastName", e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Middle Name</Label>
+                      <Input placeholder="e.g. THI (optional)" value={passForms[idx]?.middleName ?? ""} onChange={(e) => handleNameInput(idx, "middleName", e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>First Name <span className="text-red-500">*</span></Label>
+                      <Input required placeholder="e.g. AN" value={passForms[idx]?.firstName ?? ""} onChange={(e) => handleNameInput(idx, "firstName", e.target.value)} />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 -mt-2 italic">Names are automatically converted to uppercase and unaccented (as on passport)</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label>Date of Birth <span className="text-red-500">*</span></Label>
+                      <Input required type="date" max={TODAY} value={passForms[idx]?.dateOfBirth ?? ""} onChange={(e) => updatePassenger(idx, "dateOfBirth", e.target.value)} />
+                      <p className="text-[10px] text-gray-400">Format: DD/MM/YYYY – use the calendar icon to pick a date</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Passport / National ID <span className="text-red-500">*</span></Label>
+                      <Input required placeholder="Enter document number" value={passForms[idx]?.cccd ?? ""} onChange={(e) => updatePassenger(idx, "cccd", e.target.value)} />
+                    </div>
                   </div>
                   <div className="space-y-1">
-                    <Label>Last Name <span className="text-red-500">*</span></Label>
-                    <Input required placeholder="e.g. NGUYEN"
-                      value={passForms[idx]?.lastName ?? ""}
-                      onChange={(e) => handleNameInput(idx, "lastName", e.target.value)} />
+                    <Label>Email Address <span className="text-red-500">*</span></Label>
+                    <Input required type="email" placeholder="email@example.com" value={passForms[idx]?.email ?? ""} onChange={(e) => handleEmailInput(idx, e.target.value)} className={emailErrors[idx] ? "border-red-400 focus-visible:ring-red-300" : ""} />
+                    {emailErrors[idx] && <p className="text-xs text-red-500 flex items-center gap-1">⚠ {emailErrors[idx]}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Middle Name</Label>
-                    <Input placeholder="e.g. THI (optional)"
-                      value={passForms[idx]?.middleName ?? ""}
-                      onChange={(e) => handleNameInput(idx, "middleName", e.target.value)} />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Label>Phone Type <span className="text-red-500">*</span></Label>
+                      <Select value={passForms[idx]?.phoneType ?? "personal"} onValueChange={(v) => updatePassenger(idx, "phoneType", v as "personal" | "business")}>
+                        <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="personal">📱 Personal</SelectItem>
+                          <SelectItem value="business">💼 Business</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Country Code <span className="text-red-500">*</span></Label>
+                      <Select value={passForms[idx]?.countryCode ?? "+84"} onValueChange={(v) => updatePassenger(idx, "countryCode", v)}>
+                        <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {COUNTRY_CODES.map((c) => (
+                            <SelectItem key={c.dial + c.name} value={c.dial}>{c.dial} · {c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Phone Number <span className="text-red-500">*</span></Label>
+                      <Input required type="tel" inputMode="numeric" placeholder="e.g. 0901234567" value={passForms[idx]?.phone ?? ""} onChange={(e) => handlePhoneInput(idx, e.target.value)} className={phoneErrors[idx] ? "border-red-400 focus-visible:ring-red-300" : ""} />
+                      {phoneErrors[idx] && <p className="text-xs text-red-500 flex items-center gap-1">⚠ {phoneErrors[idx]}</p>}
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label>First Name <span className="text-red-500">*</span></Label>
-                    <Input required placeholder="e.g. AN"
-                      value={passForms[idx]?.firstName ?? ""}
-                      onChange={(e) => handleNameInput(idx, "firstName", e.target.value)} />
-                  </div>
-                </div>
-                <p className="text-[10px] text-gray-400 -mt-2 italic">Names are automatically converted to uppercase and unaccented (as on passport)</p>
+                </CardContent>
+              </Card>
+            ))}
 
-                {/* DOB + Passport */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label>Date of Birth <span className="text-red-500">*</span></Label>
-                    <Input required type="date"
-                      max={TODAY}
-                      value={passForms[idx]?.dateOfBirth ?? ""}
-                      onChange={(e) => updatePassenger(idx, "dateOfBirth", e.target.value)} />
-                    <p className="text-[10px] text-gray-400">Format: DD/MM/YYYY – use the calendar icon to pick a date</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Passport / National ID <span className="text-red-500">*</span></Label>
-                    <Input required placeholder="Enter document number" value={passForms[idx]?.cccd ?? ""}
-                      onChange={(e) => updatePassenger(idx, "cccd", e.target.value)} />
-                  </div>
-                </div>
+            <div className="bg-[#eef3f9] p-3 rounded-xl flex items-start gap-2 border border-[#dce8f4]">
+              <MapPin className="w-4 h-4 text-[#1e4069] mt-0.5 shrink-0" />
+              <p className="text-xs text-[#1a3557]">Passenger names must exactly match the identity document used for check-in.</p>
+            </div>
 
-                {/* Email */}
-                <div className="space-y-1">
-                  <Label>Email Address <span className="text-red-500">*</span></Label>
-                  <Input required type="email" placeholder="email@example.com"
-                    value={passForms[idx]?.email ?? ""}
-                    onChange={(e) => handleEmailInput(idx, e.target.value)}
-                    className={emailErrors[idx] ? "border-red-400 focus-visible:ring-red-300" : ""} />
-                  {emailErrors[idx] && <p className="text-xs text-red-500 flex items-center gap-1">⚠ {emailErrors[idx]}</p>}
-                </div>
-
-                {/* Phone section */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <Label>Phone Type <span className="text-red-500">*</span></Label>
-                    <Select value={passForms[idx]?.phoneType ?? "personal"} onValueChange={(v) => updatePassenger(idx, "phoneType", v as "personal" | "business")}>
-                      <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="personal">📱 Personal</SelectItem>
-                        <SelectItem value="business">💼 Business</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Country Code <span className="text-red-500">*</span></Label>
-                    <Select value={passForms[idx]?.countryCode ?? "+84"} onValueChange={(v) => updatePassenger(idx, "countryCode", v)}>
-                      <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {COUNTRY_CODES.map((c) => (
-                          <SelectItem key={c.dial + c.name} value={c.dial}>{c.dial} · {c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Phone Number <span className="text-red-500">*</span></Label>
-                    <Input required type="tel" inputMode="numeric" placeholder="e.g. 0901234567"
-                      value={passForms[idx]?.phone ?? ""}
-                      onChange={(e) => handlePhoneInput(idx, e.target.value)}
-                      className={phoneErrors[idx] ? "border-red-400 focus-visible:ring-red-300" : ""} />
-                    {phoneErrors[idx] && <p className="text-xs text-red-500 flex items-center gap-1">⚠ {phoneErrors[idx]}</p>}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-
-          <div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2 border border-blue-100">
-            <MapPin className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-blue-800">Passenger names must exactly match the identity document used for check-in.</p>
+            <div className="flex justify-end">
+              <Button type="submit" size="lg" className="bg-[#f5d020] text-gray-900 hover:bg-yellow-500 font-semibold gap-2 px-8">
+                <FileText className="w-4 h-4" /> Next to Summary &amp; Baggage
+              </Button>
+            </div>
+          </form>
           </div>
 
-          {/* Price summary */}
-          <div className="bg-gray-50 rounded-xl p-4 border text-sm space-y-2">
-            <div className="flex justify-between text-gray-600"><span>Total Base Fare</span><span>{formatVND(basePrices.reduce((a,b)=>a+b,0))} VND</span></div>
-            {totalSurcharge > 0 && <div className="flex justify-between text-gray-600"><span>Seat selection fee</span><span>{formatVND(totalSurcharge)} VND</span></div>}
-            {!usedSeatSelection && <p className="text-xs text-gray-400 italic">Seat will be randomly assigned at no extra charge.</p>}
-            <div className="flex justify-between font-bold text-gray-900 border-t pt-2"><span>Total</span><span className="text-[#0b5c66] text-base">{formatVND(total)} VND</span></div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button type="submit" size="lg" className="bg-[#f5d020] text-gray-900 hover:bg-yellow-500 font-semibold gap-2 px-8">
-              <FileText className="w-4 h-4" /> Next to Summary &amp; Baggage
-            </Button>
-          </div>
-        </form>
+          {/* Right: booking sidebar */}
+          {selectedFlight && (
+            <div className="space-y-4 sticky top-6">
+              <Card className="border border-[#dce8f4] shadow-md rounded-2xl overflow-hidden">
+                <div className={`${theme.card} ${theme.text} px-5 py-4`}>
+                  <p className="text-xs opacity-75 font-medium mb-1">Your trip</p>
+                  <p className="text-2xl font-bold">{selectedFlight.departure.code} → {selectedFlight.arrival.code}</p>
+                  <p className="text-sm opacity-80 mt-0.5">{selectedFlight.departure.time} – {selectedFlight.arrival.time}</p>
+                </div>
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Flight</span>
+                    <span className="font-semibold text-gray-800">{selectedFlight.flightNumber}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Duration</span>
+                    <span className="font-semibold text-gray-800">{selectedFlight.duration}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Passengers</span>
+                    <span className="font-semibold text-gray-800">{passCount}</span>
+                  </div>
+                  <div className="h-px bg-gray-100" />
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Base fare</span>
+                    <span className="font-semibold text-gray-800">{formatVND(basePrices.reduce((a,b)=>a+b,0))} VND</span>
+                  </div>
+                  {totalSurcharge > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Seat fee</span>
+                      <span className="font-semibold text-gray-800">{formatVND(totalSurcharge)} VND</span>
+                    </div>
+                  )}
+                  <div className="h-px bg-gray-200" />
+                  <div className="flex justify-between">
+                    <span className="font-bold text-gray-800">Total due</span>
+                    <span className="font-black text-[#1a3557] text-lg">{formatVND(total)} VND</span>
+                  </div>
+                  {!usedSeatSelection && (
+                    <p className="text-[10px] text-gray-400 italic">Seat auto-assigned · no extra charge</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -852,9 +859,9 @@ export default function EmployeeBookingPage() {
         </div>
 
         <Card className="border-0 shadow-lg overflow-hidden">
-          <div className="bg-[#d2eaf4] px-6 py-4 border-b border-blue-100 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-[#0b5c66]">Tickets</h2>
-            <Badge variant="outline" className="bg-white/50 border-[#0b5c66]/20 text-[#0b5c66]">
+          <div className="bg-white px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-800">Tickets</h2>
+            <Badge variant="outline" className="bg-[#eef3f9] border-[#c3d4e8] text-[#1a3557]">
               {selectedFlight?.departure.code} → {selectedFlight?.arrival.code}
             </Badge>
           </div>
@@ -874,21 +881,21 @@ export default function EmployeeBookingPage() {
                   </div>
                 </div>
                 
-                <div className="flex flex-col items-end gap-2 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
-                  <p className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Extra Checked Baggage</p>
+                <div className="flex flex-col items-end gap-2 bg-gray-50 p-3 rounded-xl border border-gray-200">
+                  <p className="text-[10px] font-bold text-[#1a3557] uppercase tracking-widest">Extra Checked Baggage</p>
                   <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-full border-blue-300 text-blue-700 hover:bg-blue-100" 
+                    <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-full border-[#3a6090] text-[#1a3557] hover:bg-[#eef3f9]" 
                       onClick={() => setExtraBaggageKg(prev => { const n = [...prev]; n[i] = Math.max(0, n[i] - 1); return n; })}>
                       -
                     </Button>
-                    <div className="w-12 text-center font-bold text-[#0b5c66]">{extraBaggageKg[i] || 0} kg</div>
-                    <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-full border-blue-300 text-blue-700 hover:bg-blue-100" 
+                    <div className="w-12 text-center font-bold text-[#1a3557]">{extraBaggageKg[i] || 0} kg</div>
+                    <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-full border-[#3a6090] text-[#1a3557] hover:bg-[#eef3f9]" 
                       onClick={() => setExtraBaggageKg(prev => { const n = [...prev]; n[i] = n[i] + 1; return n; })}>
                       +
                     </Button>
                   </div>
                   {extraBaggageKg[i] > 0 && (
-                    <p className="text-[11px] font-bold text-blue-600">+{formatVND(extraBaggageKg[i] * 30000)} VND</p>
+                    <p className="text-[11px] font-bold text-[#1e4069]">+{formatVND(extraBaggageKg[i] * 30000)} VND</p>
                   )}
                 </div>
               </div>
@@ -925,7 +932,7 @@ export default function EmployeeBookingPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-xl overflow-hidden bg-[#0b5c66]">
+        <Card className="border-0 shadow-xl overflow-hidden bg-[#1a3557]">
           <CardContent className="p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-6">
             <div className="space-y-1">
               <p className="text-sm text-white/70 font-medium">Grand Total</p>
@@ -1019,7 +1026,7 @@ export default function EmployeeBookingPage() {
                       </Select>
                     </div>
                     <div className="col-span-12 flex items-end pt-2">
-                      <Button type="button" onClick={() => setSearched(true)} className="h-12 w-full gap-2 rounded-xl text-base font-semibold bg-[#0b5c66] hover:bg-[#094a52]">
+                      <Button type="button" onClick={() => setSearched(true)} className="h-12 w-full gap-2 rounded-xl text-base font-semibold bg-[#1a3557] hover:bg-[#1a3557]">
                         <Search className="h-5 w-5" /> Search Flights
                       </Button>
                     </div>
@@ -1092,7 +1099,7 @@ export default function EmployeeBookingPage() {
                       <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Flight time: {flight.duration}</span>
                       <span className="flex items-center gap-1 font-medium text-gray-700">✈ {flight.flightNumber} · Operated by {flight.airline} <span className="text-yellow-500">🪷</span></span>
                       {flight.discount && <Badge variant="destructive" className="mt-1 text-[10px]">{flight.discount}% OFF</Badge>}
-                      <a href="#" className="text-blue-600 font-medium hover:underline block mt-1">Flight details ↗</a>
+                      <a href="#" className="text-[#1e4069] font-medium hover:underline block mt-1">Flight details ↗</a>
                     </div>
                   </div>
 
@@ -1100,7 +1107,7 @@ export default function EmployeeBookingPage() {
                   <div className="flex flex-col sm:flex-row border-t xl:border-t-0 xl:border-l border-gray-200">
                     {econSold ? <SoldOutCol label="ECONOMY" /> : (
                       <div onClick={() => openDialog(flight, "economy")}
-                        className="relative w-full sm:w-40 p-4 flex flex-col justify-center items-center bg-[#0b5c66] text-white hover:bg-[#0a4d55] cursor-pointer transition-all hover:scale-[1.02]">
+                        className="relative w-full sm:w-40 p-4 flex flex-col justify-center items-center bg-[#1a3557] text-white hover:bg-[#1a3557] cursor-pointer transition-all hover:scale-[1.02]">
                         <p className="text-sm font-bold mb-1">ECONOMY</p>
                         <p className="text-[10px] opacity-75">from</p>
                         <p className="text-base font-bold">{formatVND(econPrice)}</p>
@@ -1145,7 +1152,7 @@ export default function EmployeeBookingPage() {
       {/* ── Ticket Dialog ─────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         {selectedFlight && (
-          <DialogContent className={`${seatMapMode ? "max-w-xl" : "max-w-md"} bg-[#d2eaf4]/97 backdrop-blur-sm border-blue-200 p-0 overflow-hidden [&>button]:hidden`}>
+          <DialogContent className={`${seatMapMode ? "max-w-xl" : "max-w-md"} bg-white backdrop-blur-sm border-gray-200 p-0 overflow-hidden [&>button]:hidden`}>
             <DialogTitle className="sr-only">Flight Details</DialogTitle>
 
             {/* Detail view */}
@@ -1153,7 +1160,7 @@ export default function EmployeeBookingPage() {
               <div className="p-7 relative">
                 <button onClick={() => setDialogOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
                 <div className="space-y-4 mt-2">
-                  <div className="text-center border-b border-blue-200 pb-4">
+                  <div className="text-center border-b border-[#c3d4e8] pb-4">
                     <p className="text-gray-500 text-sm mb-1">Route</p>
                     <p className="font-bold text-3xl text-[#0b5c66] tracking-tight">{selectedFlight.departure.code} – {selectedFlight.arrival.code}</p>
                   </div>
@@ -1163,23 +1170,23 @@ export default function EmployeeBookingPage() {
                   </div>
                   <div className="relative pl-5 border-l-2 border-gray-300 space-y-5 py-1 ml-1">
                     <div className="relative border-b border-gray-100 pb-3">
-                      <div className="absolute w-3 h-3 bg-gray-400 rounded-full -left-[27px] top-1 border-2 border-[#d2eaf4]" />
+                      <div className="absolute w-3 h-3 bg-gray-400 rounded-full -left-[27px] top-1 border-2 border-white" />
                       <p className="text-gray-400 text-xs mb-1">Departs</p>
                       <div className="flex justify-between items-center">
                         <p className="font-semibold text-gray-800">{selectedFlight.departure.city} ({selectedFlight.departure.code})</p>
-                        <p className="font-bold text-gray-900 border border-gray-200 bg-white/50 px-2 py-0.5 rounded shadow-sm">{selectedFlight.departure.time}</p>
+                        <p className="font-bold text-gray-900 border border-gray-200 bg-white px-2 py-0.5 rounded shadow-sm">{selectedFlight.departure.time}</p>
                       </div>
                     </div>
                     <div className="relative pt-1">
-                      <div className="absolute w-3 h-3 bg-[#0b5c66] rounded-full -left-[27px] top-2 border-2 border-[#d2eaf4]" />
+                      <div className="absolute w-3 h-3 bg-[#1a3557] rounded-full -left-[27px] top-2 border-2 border-white" />
                       <p className="text-gray-400 text-xs mb-1">Arrives</p>
                       <div className="flex justify-between items-center">
                         <p className="font-semibold text-gray-800">{selectedFlight.arrival.city} ({selectedFlight.arrival.code})</p>
-                        <p className="font-bold text-gray-900 border border-gray-200 bg-white/50 px-2 py-0.5 rounded shadow-sm">{selectedFlight.arrival.time}</p>
+                        <p className="font-bold text-gray-900 border border-gray-200 bg-white px-2 py-0.5 rounded shadow-sm">{selectedFlight.arrival.time}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="text-center border-t border-blue-200 pt-4">
+                  <div className="text-center border-t border-[#c3d4e8] pt-4">
                     <p className="text-gray-500 text-sm mb-1">Flight no.</p>
                     <p className="font-bold text-xl text-[#0b5c66] tracking-wider">{selectedFlight.flightNumber}</p>
                   </div>
@@ -1195,7 +1202,7 @@ export default function EmployeeBookingPage() {
                   </div>
                 </div>
                 <div className="mt-7 flex flex-col items-end gap-3">
-                  <Button onClick={() => setSeatMapMode(true)} className="bg-[#1e5b72] hover:bg-[#154456] text-white px-8 w-56 gap-2">
+                  <Button onClick={() => setSeatMapMode(true)} className="bg-[#1a3557] hover:bg-[#0f1f33] text-white px-8 w-56 gap-2">
                     🪑 Configure Passengers
                   </Button>
                   <Button onClick={() => handleConfirm(false)} className="bg-[#f5d020] hover:bg-yellow-500 text-gray-900 font-semibold px-8 w-56 gap-2">
@@ -1221,9 +1228,9 @@ export default function EmployeeBookingPage() {
 
                 <div className="space-y-4">
                   {Array.from({ length: passCount }).map((_, i) => (
-                    <div key={i} className="bg-white rounded-xl p-4 border border-blue-100 shadow-sm flex flex-col gap-3">
+                    <div key={i} className="bg-white rounded-xl p-4 border border-[#dce8f4] shadow-sm flex flex-col gap-3">
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-[#0b5c66]">Passenger {i + 1}</span>
+                        <span className="font-bold text-[#1a3557]">Passenger {i + 1}</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex-1">
@@ -1252,16 +1259,16 @@ export default function EmployeeBookingPage() {
                           <Label className="text-[10px] text-gray-500 uppercase">Seat</Label>
                           <Button 
                             variant={chosenSeats[i] ? "default" : "outline"} 
-                            className={`w-full mt-1 h-9 ${chosenSeats[i] ? 'bg-[#0b5c66] hover:bg-[#0a4d55] text-white' : ''}`}
+                            className={`w-full mt-1 h-9 ${chosenSeats[i] ? 'bg-[#1a3557] hover:bg-[#1a3557] text-white' : ''}`}
                             onClick={() => setActivePassengerIndex(i)}
                           >
                             {chosenSeats[i] || "Choose Seat"}
                           </Button>
                         </div>
                       </div>
-                      <div className="flex justify-between items-center bg-[#0b5c66]/5 p-2 rounded-lg mt-2">
+                      <div className="flex justify-between items-center bg-[#eef3f9] p-2 rounded-lg mt-2">
                         <span className="text-xs text-gray-500 font-semibold uppercase">Base Fare</span>
-                        <span className="font-bold text-[#0b5c66]">{formatVND(getBasePrice(selectedFlight.id, passengerClasses[i]))} VND</span>
+                        <span className="font-bold text-[#1a3557]">{formatVND(getBasePrice(selectedFlight.id, passengerClasses[i]))} VND</span>
                       </div>
                     </div>
                   ))}

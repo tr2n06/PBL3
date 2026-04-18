@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -53,8 +53,10 @@ const demoAccounts = [
   },
 ];
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get("returnUrl");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -64,40 +66,45 @@ export default function LoginPage() {
 
   const handleDemoLogin = async (account: (typeof demoAccounts)[0]) => {
     setDemoLoading(account.role);
-
-    // Simulate login delay
     await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Store demo user info
     localStorage.setItem("userRole", account.role);
     localStorage.setItem("userEmail", account.email);
     localStorage.setItem("userName", account.name);
-
-    router.push(account.redirect);
+    // If user came from search/guest booking with a returnUrl, redirect there
+    if (returnUrl && account.role === "customer") {
+      router.push(returnUrl);
+      return;
+    }
+    // If user came from guest booking, redirect back there
+    const pendingBooking = localStorage.getItem("pendingGuestBooking");
+    if (pendingBooking && account.role === "customer") {
+      router.push("/customer/booking?resumeGuest=1");
+    } else {
+      router.push(account.redirect);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
-    // Simulate login - in real app, this would call an API
     await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Store role in localStorage for demo purposes
     localStorage.setItem("userRole", role);
     localStorage.setItem("userEmail", email);
-
-    // Redirect based on role
+    // If user came from search/guest booking with a returnUrl, redirect there
+    if (returnUrl && role === "customer") {
+      router.push(returnUrl);
+      return;
+    }
+    // Check for pending guest booking
+    const pendingBooking = localStorage.getItem("pendingGuestBooking");
+    if (pendingBooking && role === "customer") {
+      router.push("/customer/booking?resumeGuest=1");
+      return;
+    }
     switch (role) {
-      case "customer":
-        router.push("/customer/booking");
-        break;
-      case "employee":
-        router.push("/employee/booking");
-        break;
-      case "manager":
-        router.push("/manager/employees");
-        break;
+      case "customer":  router.push("/customer/booking");  break;
+      case "employee":  router.push("/employee/booking");  break;
+      case "manager":   router.push("/manager/employees"); break;
     }
   };
 
@@ -177,9 +184,11 @@ export default function LoginPage() {
                 <input type="checkbox" className="rounded border-input" />
                 Remember me
               </label>
-              <Link href="#" className="text-sm text-primary hover:underline">
-                Forgot password?
-              </Link>
+              {role === "customer" && (
+                <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
@@ -196,5 +205,13 @@ export default function LoginPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

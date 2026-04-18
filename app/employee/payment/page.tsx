@@ -32,7 +32,7 @@ const CLASS_LABELS: Record<TicketClass, string> = {
   economy: "Economy", business: "Premium Economy", firstClass: "Business",
 };
 const CLASS_THEME: Record<TicketClass, { card: string; text: string }> = {
-  economy: { card: "bg-[#0b5c66]", text: "text-white" },
+  economy: { card: "bg-[#1a3557]", text: "text-white" },
   business: { card: "bg-[#5a8fa3]", text: "text-white" },
   firstClass: { card: "bg-[#dfad36]", text: "text-gray-900" },
 };
@@ -186,7 +186,7 @@ export default function EmployeePaymentPage() {
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-xs text-gray-400 font-bold uppercase">Total Collected</p>
-                  <p className="text-3xl font-black text-[#0b5c66]">{formatVND(booked.totalPrice)} VND</p>
+                  <p className="text-3xl font-black text-[#1a3557]">{formatVND(booked.totalPrice)} VND</p>
                 </div>
                 <div className="flex gap-3">
                   <Button variant="outline" className="h-12 px-6 gap-2 font-bold" onClick={() => window.print()}>
@@ -215,7 +215,7 @@ export default function EmployeePaymentPage() {
         {/* Payment Methods */}
         <div className="lg:col-span-2 space-y-6">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <CreditCard className="w-6 h-6 text-[#0b5c66]" /> Select Collection Method
+            <CreditCard className="w-6 h-6 text-[#1e4069]" /> Select Collection Method
           </h2>
           
           <div className="grid sm:grid-cols-3 gap-4">
@@ -223,7 +223,7 @@ export default function EmployeePaymentPage() {
             <button
               onClick={() => setPaymentMethod("card")}
               className={`relative group flex flex-col items-center p-4 rounded-3xl border-2 transition-all duration-300 bg-white shadow-sm hover:shadow-xl ${
-                paymentMethod === "card" ? "border-[#0b5c66] ring-4 ring-[#0b5c66]/5" : "border-gray-100 grayscale hover:grayscale-0"
+                paymentMethod === "card" ? "border-[#1a3557] ring-4 ring-[#1a3557]/5" : "border-gray-100 grayscale hover:grayscale-0"
               }`}
             >
               <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 relative">
@@ -245,7 +245,7 @@ export default function EmployeePaymentPage() {
             <button
               onClick={() => setPaymentMethod("cash")}
               className={`relative group flex flex-col items-center p-4 rounded-3xl border-2 transition-all duration-300 bg-white shadow-sm hover:shadow-xl ${
-                paymentMethod === "cash" ? "border-[#0b5c66] ring-4 ring-[#0b5c66]/5" : "border-gray-100 grayscale hover:grayscale-0"
+                paymentMethod === "cash" ? "border-[#1a3557] ring-4 ring-[#1a3557]/5" : "border-gray-100 grayscale hover:grayscale-0"
               }`}
             >
               <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 relative">
@@ -267,7 +267,7 @@ export default function EmployeePaymentPage() {
             <button
               onClick={() => setPaymentMethod("qr")}
               className={`relative group flex flex-col items-center p-4 rounded-3xl border-2 transition-all duration-300 bg-white shadow-sm hover:shadow-xl ${
-                paymentMethod === "qr" ? "border-[#0b5c66] ring-4 ring-[#0b5c66]/5" : "border-gray-100 grayscale hover:grayscale-0"
+                paymentMethod === "qr" ? "border-[#1a3557] ring-4 ring-[#1a3557]/5" : "border-gray-100 grayscale hover:grayscale-0"
               }`}
             >
               <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden mb-4 relative">
@@ -294,7 +294,7 @@ export default function EmployeePaymentPage() {
             <CardHeader className="p-8 pb-4">
               <div className="flex justify-between items-start">
                 <div>
-                  <Badge variant="outline" className="bg-blue-100 border-blue-200 text-blue-700 font-bold mb-2">
+                  <Badge variant="outline" className="bg-[#dce8f4] border-[#c3d4e8] text-[#1a3557] font-bold mb-2">
                     MULTIPLE CLASSES
                   </Badge>
                   <CardTitle className="text-2xl font-black text-gray-800">
@@ -338,13 +338,13 @@ export default function EmployeePaymentPage() {
               <Button
                 disabled={!paymentMethod || isProcessing}
                 onClick={handleCompletePayment}
-                className="w-full h-14 rounded-2xl bg-[#0b5c66] hover:bg-[#08424a] text-white font-black text-lg shadow-xl shadow-blue-100 transition-all active:scale-95 disabled:opacity-50"
+                className="w-full h-14 rounded-2xl bg-[#1a3557] hover:bg-[#1a3557] text-white font-black text-lg shadow-xl shadow-[#dce8f4] transition-all active:scale-95 disabled:opacity-50"
               >
                 {isProcessing ? "Processing..." : `PROCESS ${formatVND(booked.totalPrice)} VND`}
               </Button>
               
-              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest leading-relaxed">
+              <div className="bg-[#eef3f9] p-4 rounded-xl border border-[#dce8f4]">
+                <p className="text-[10px] text-[#1e4069] font-bold uppercase tracking-widest leading-relaxed">
                   Important: Ensure cash is counted and verified before processing collection.
                 </p>
               </div>

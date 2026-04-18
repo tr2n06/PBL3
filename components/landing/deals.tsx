@@ -1,12 +1,26 @@
-import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Plane, Clock, Tag, ArrowRight } from 'lucide-react'
-import { mockFlights } from '@/lib/mock-data'
+"use client";
+
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Plane, Clock, Tag, ArrowRight } from "lucide-react";
+import { mockFlights } from "@/lib/mock-data";
+import type { Flight } from "@/lib/types";
+import { GuestBookingModal } from "./guest-booking-modal";
+import Link from "next/link";
+
+type TicketClass = "economy" | "business" | "firstClass";
 
 export function Deals() {
-  const promotionFlights = mockFlights.filter((flight) => flight.isPromotion)
+  const promotionFlights = mockFlights.filter((flight) => flight.isPromotion);
+  const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
+  const [selectedClass, setSelectedClass] = useState<TicketClass>("economy");
+
+  const handleBookNow = (flight: Flight) => {
+    setSelectedFlight(flight);
+    setSelectedClass("economy");
+  };
 
   return (
     <section id="deals" className="bg-secondary/30 py-16 md:py-24">
@@ -79,8 +93,11 @@ export function Deals() {
                       <span className="text-sm text-muted-foreground">/ person</span>
                     </div>
                   </div>
-                  <Button asChild>
-                    <Link href={`/search?flightId=${flight.id}`}>Book Now</Link>
+                  <Button
+                    onClick={() => handleBookNow(flight)}
+                    className="bg-[#0b5c66] hover:bg-[#094a52] text-white"
+                  >
+                    Book Now
                   </Button>
                 </div>
               </CardContent>
@@ -94,6 +111,15 @@ export function Deals() {
           </Button>
         </div>
       </div>
+
+      {/* Guest Booking Modal */}
+      {selectedFlight && (
+        <GuestBookingModal
+          flight={selectedFlight}
+          initialClass={selectedClass}
+          onClose={() => setSelectedFlight(null)}
+        />
+      )}
     </section>
-  )
+  );
 }

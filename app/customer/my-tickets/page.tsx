@@ -26,7 +26,7 @@ const CLASS_COLORS: Record<string, string> = {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  confirmed: { label: 'Confirmed', color: 'bg-blue-100 text-blue-700 border-blue-200'    },
+  confirmed: { label: 'Confirmed', color: 'bg-[#dce8f4] text-[#1a3557] border-[#c3d4e8]'    },
   pending:   { label: 'Pending',   color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-600 border-red-200'          },
   completed: { label: 'Completed', color: 'bg-gray-100 text-gray-600 border-gray-200'       },
@@ -177,7 +177,7 @@ function TicketCard({ ticket }: { ticket: TicketType }) {
         </div>
 
         {/* Ticket details */}
-        <div className="grid gap-3 rounded-xl bg-[#f0f8fb] border border-blue-100 p-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+        <div className="grid gap-3 rounded-xl bg-[#f0f8fb] border border-[#dce8f4] p-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
           <div>
             <div className="text-xs text-muted-foreground mb-0.5">Booking Ref.</div>
             <div className="font-mono font-bold text-[#0b5c66]">{ticket.bookingRef}</div>

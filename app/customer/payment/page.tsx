@@ -32,7 +32,7 @@ const CLASS_LABELS: Record<TicketClass, string> = {
   economy: "Economy", business: "Premium Economy", firstClass: "Business",
 };
 const CLASS_THEME: Record<TicketClass, { card: string; text: string }> = {
-  economy: { card: "bg-[#0b5c66]", text: "text-white" },
+  economy: { card: "bg-[#1a3557]", text: "text-white" },
   business: { card: "bg-[#5a8fa3]", text: "text-white" },
   firstClass: { card: "bg-[#dfad36]", text: "text-gray-900" },
 };
@@ -317,7 +317,7 @@ export default function CustomerPaymentPage() {
               <Button
                 disabled={!paymentMethod || isProcessing}
                 onClick={handleCompletePayment}
-                className="w-full h-14 rounded-2xl bg-[#0b5c66] hover:bg-[#08424a] text-white font-black text-lg shadow-xl shadow-blue-200 transition-all active:scale-95 disabled:opacity-50"
+                className="w-full h-14 rounded-2xl bg-[#0b5c66] hover:bg-[#08424a] text-white font-black text-lg shadow-xl shadow-[#c3d4e8] transition-all active:scale-95 disabled:opacity-50"
               >
                 {isProcessing ? "Processing..." : `PAY ${formatVND(booked.totalPrice)} VND`}
               </Button>

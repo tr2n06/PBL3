@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -17,6 +17,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { Menu, LogOut, User, Home, type LucideIcon } from "lucide-react";
+import { Footer } from "@/components/landing/footer";
 
 interface NavItem {
   href: string;
@@ -40,6 +41,7 @@ export function DashboardLayout({
   userEmail,
 }: DashboardLayoutProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const roleLabels = {
@@ -48,11 +50,12 @@ export function DashboardLayout({
     manager: "Manager",
   };
 
+  // Use router.push so browser back/forward buttons keep working
   const handleLogout = () => {
     localStorage.removeItem("userRole");
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userName");
-    window.location.href = "/";
+    router.push("/");
   };
 
   return (
@@ -60,7 +63,8 @@ export function DashboardLayout({
       {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r bg-sidebar lg:flex">
         <div className="flex h-16 items-center gap-2 border-b px-6">
-          <Link href={navItems[0]?.href || "/"} className="flex items-center gap-2">
+          {/* Logo → home (user stays logged-in via localStorage) */}
+          <Link href="/" className="flex items-center gap-2">
             <Image
               src="/logo1.png"
               alt="SkyLine logo"
@@ -176,8 +180,8 @@ export function DashboardLayout({
             </SheetContent>
           </Sheet>
 
-          {/* Logo for mobile */}
-          <Link href={navItems[0]?.href || "/"} className="flex items-center gap-2 lg:hidden">
+          {/* Logo for mobile – links back to home */}
+          <Link href="/" className="flex items-center gap-2 lg:hidden">
             <Image
               src="/logo1.png"
               alt="SkyLine logo"
@@ -244,6 +248,9 @@ export function DashboardLayout({
 
         {/* Page Content */}
         <main className="flex-1 p-4 lg:p-6">{children}</main>
+
+        {/* Footer – same as the landing page */}
+        <Footer />
       </div>
     </div>
   );
