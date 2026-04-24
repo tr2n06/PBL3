@@ -40,23 +40,184 @@ import {
   Plus,
   Minus,
   AlertTriangle,
+  CreditCard,
+  QrCode,
+  Check,
+  ChevronRight,
 } from 'lucide-react'
 import { mockTickets } from '@/lib/mock-data'
 import type { TicketClass } from '@/lib/types'
 
+// ─── Matches booking page exactly ────────────────────────────────────────────
+const CLASS_LABELS: Record<TicketClass, string> = {
+  economy: 'Economy',
+  business: 'Premium Economy',
+  firstClass: 'Business',
+}
+
+// Same price ranges used in booking page (VND)
+const PRICE_RANGES: Record<TicketClass, readonly [number, number]> = {
+  economy:   [3_000_000, 3_500_000],
+  business:  [4_500_000, 5_200_000],
+  firstClass:[8_000_000, 10_000_000],
+}
+
+/** Same deterministic base-price function as the booking page */
+function hashStr(s: string): number {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h) ^ s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+function getBasePrice(flightId: string, tClass: TicketClass): number {
+  const [min, max] = PRICE_RANGES[tClass]
+  return Math.round((min + (hashStr(flightId + tClass) % (max - min))) / 50_000) * 50_000
+}
+
+function formatVND(n: number) { return new Intl.NumberFormat('vi-VN').format(n) }
+
+// Only classes strictly above current (no downgrade)
+const CLASS_ORDER: TicketClass[] = ['economy', 'business', 'firstClass']
+function getAvailableUpgrades(current: TicketClass): TicketClass[] {
+  return CLASS_ORDER.slice(CLASS_ORDER.indexOf(current) + 1)
+}
+
+// Baggage: 30,000 VND per kg (matches booking page)
+const BAGGAGE_VND_PER_KG = 30_000
+// Each +/- button adds/removes exactly 1 kg
+const KG_PER_BAG = 1
+
+type PaymentMethod = 'card' | 'qr' | null
+
+// ─── Payment step ─────────────────────────────────────────────────────────────
+function PaymentStep({
+  amountVND,
+  paymentMethod,
+  setPaymentMethod,
+  isProcessing,
+  onConfirm,
+  onBack,
+}: {
+  amountVND: number
+  paymentMethod: PaymentMethod
+  setPaymentMethod: (m: PaymentMethod) => void
+  isProcessing: boolean
+  onConfirm: () => void
+  onBack: () => void
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg bg-secondary/50 p-4 flex justify-between items-center">
+        <span className="font-semibold">Amount to pay</span>
+        <span className="text-xl font-bold text-primary">{formatVND(amountVND)} VND</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {/* Card */}
+        <button
+          type="button"
+          onClick={() => setPaymentMethod('card')}
+          className={`relative group flex flex-col items-center p-3 rounded-2xl border-2 transition-all duration-200 bg-white shadow-sm hover:shadow-lg ${
+            paymentMethod === 'card'
+              ? 'border-primary ring-4 ring-primary/10'
+              : 'border-gray-100 grayscale hover:grayscale-0'
+          }`}
+        >
+          <div className="w-full aspect-[4/3] rounded-xl overflow-hidden mb-2 relative">
+            <img
+              src="https://i.pinimg.com/736x/9c/71/d6/9c71d69a83143c2ec5f518698b174533.jpg"
+              alt="Card Payment"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+            />
+            {paymentMethod === 'card' && (
+              <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                <div className="bg-white rounded-full p-1.5 shadow-lg">
+                  <Check className="w-4 h-4 text-primary stroke-[3px]" />
+                </div>
+              </div>
+            )}
+          </div>
+          <span className="text-sm font-bold text-gray-800 flex items-center gap-1">
+            <CreditCard className="h-3.5 w-3.5" /> Card
+          </span>
+        </button>
+
+        {/* QR */}
+        <button
+          type="button"
+          onClick={() => setPaymentMethod('qr')}
+          className={`relative group flex flex-col items-center p-3 rounded-2xl border-2 transition-all duration-200 bg-white shadow-sm hover:shadow-lg ${
+            paymentMethod === 'qr'
+              ? 'border-primary ring-4 ring-primary/10'
+              : 'border-gray-100 grayscale hover:grayscale-0'
+          }`}
+        >
+          <div className="w-full aspect-[4/3] rounded-xl overflow-hidden mb-2 relative">
+            <img
+              src="https://i.pinimg.com/736x/f6/fb/c4/f6fbc4deadbcc5287d59fff163191cee.jpg"
+              alt="QR Payment"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+            />
+            {paymentMethod === 'qr' && (
+              <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                <div className="bg-white rounded-full p-1.5 shadow-lg">
+                  <Check className="w-4 h-4 text-primary stroke-[3px]" />
+                </div>
+              </div>
+            )}
+          </div>
+          <span className="text-sm font-bold text-gray-800 flex items-center gap-1">
+            <QrCode className="h-3.5 w-3.5" /> QR
+          </span>
+        </button>
+      </div>
+
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onBack} className="flex-1">
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back
+        </Button>
+        <Button
+          onClick={onConfirm}
+          disabled={!paymentMethod || isProcessing}
+          className="flex-1"
+        >
+          {isProcessing ? 'Processing…' : `Confirm Payment`}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 export default function TicketDetailPage() {
   const params = useParams()
   const router = useRouter()
   const ticketId = params.id as string
 
-  const ticket = mockTickets.find(t => t.id === ticketId)
+  const ticketIndex = mockTickets.findIndex(t => t.id === ticketId)
+  const rawTicket = mockTickets[ticketIndex]
 
+  const [ticket, setTicket] = useState(() =>
+    rawTicket ? { ...rawTicket, baggage: { ...rawTicket.baggage } } : null
+  )
+
+  // ── Extra baggage paid (VND) – persisted across dialog closes ─────────────
+  const [extraBaggagePaidVND, setExtraBaggagePaidVND] = useState(0)
+
+  // ── Upgrade dialog ────────────────────────────────────────────────────────
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false)
-  const [showBaggageDialog, setShowBaggageDialog] = useState(false)
-  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [upgradeStep, setUpgradeStep] = useState<'select' | 'payment' | 'success'>('select')
   const [selectedUpgrade, setSelectedUpgrade] = useState<TicketClass | ''>('')
-  const [cabinBags, setCabinBags] = useState(ticket?.baggage.cabin || 1)
-  const [checkedBags, setCheckedBags] = useState(ticket?.baggage.checked || 1)
+  const [upgradePaymentMethod, setUpgradePaymentMethod] = useState<PaymentMethod>(null)
+
+  // ── Baggage dialog ────────────────────────────────────────────────────────
+  const [showBaggageDialog, setShowBaggageDialog] = useState(false)
+  const [baggageStep, setBaggageStep] = useState<'select' | 'payment' | 'success'>('select')
+  // extra kg – only checked baggage allowed (no cabin upsell)
+  const [extraCheckedKg, setExtraCheckedKg] = useState(0)
+  const [baggagePaymentMethod, setBaggagePaymentMethod] = useState<PaymentMethod>(null)
+
+  // ── Cancel dialog ─────────────────────────────────────────────────────────
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -73,61 +234,92 @@ export default function TicketDetailPage() {
     )
   }
 
-  const classLabels: Record<TicketClass, string> = {
-    economy: 'Economy',
-    business: 'Business',
-    firstClass: 'First Class',
+  const availableUpgrades = getAvailableUpgrades(ticket.ticketClass)
+
+  // Upgrade cost = difference in base prices for this flight
+  const upgradePrice = selectedUpgrade
+    ? getBasePrice(ticket.flightId, selectedUpgrade as TicketClass) -
+      getBasePrice(ticket.flightId, ticket.ticketClass)
+    : 0
+
+  // Baggage cost: 30,000 VND per kg (checked only)
+  const bagCostVND = extraCheckedKg * BAGGAGE_VND_PER_KG
+
+  // Total Paid = current class base price + cumulative extra baggage paid
+  const currentBasePrice = ticket ? getBasePrice(ticket.flightId, ticket.ticketClass) : 0
+  const totalPaidVND = currentBasePrice + extraBaggagePaidVND
+
+  // ── Upgrade handlers ──────────────────────────────────────────────────────
+  const openUpgradeDialog = () => {
+    setSelectedUpgrade('')
+    setUpgradeStep('select')
+    setUpgradePaymentMethod(null)
+    setShowUpgradeDialog(true)
   }
 
-  const upgradePrices: Record<TicketClass, number> = {
-    economy: 0,
-    business: 750,
-    firstClass: 1500,
-  }
-
-  const baggagePrice = 35 // per extra bag
-
-  const availableUpgrades = (): TicketClass[] => {
-    const classes: TicketClass[] = ['economy', 'business', 'firstClass']
-    const currentIndex = classes.indexOf(ticket.ticketClass)
-    return classes.slice(currentIndex + 1)
-  }
-
-  const handleUpgrade = async () => {
-    if (!selectedUpgrade) return
+  const handleUpgradePayment = async () => {
+    if (!upgradePaymentMethod || !selectedUpgrade || !ticket) return
     setIsProcessing(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    await new Promise(r => setTimeout(r, 1200))
+    const newClass = selectedUpgrade as TicketClass
+    // Price updates to the base price of the new class
+    const newPrice = getBasePrice(ticket.flightId, newClass)
+    const updated = { ...ticket, ticketClass: newClass, price: newPrice }
+    setTicket(updated)
+    if (ticketIndex !== -1) mockTickets[ticketIndex] = updated
     setIsProcessing(false)
+    setUpgradeStep('success')
+  }
+
+  const closeUpgradeDialog = () => {
     setShowUpgradeDialog(false)
-    alert(`Successfully upgraded to ${classLabels[selectedUpgrade]}!`)
+    setUpgradeStep('select')
+    setSelectedUpgrade('')
+    setUpgradePaymentMethod(null)
   }
 
-  const handleAddBaggage = async () => {
+  // ── Baggage handlers ──────────────────────────────────────────────────────
+  const openBaggageDialog = () => {
+    setExtraCheckedKg(0)
+    setBaggageStep('select')
+    setBaggagePaymentMethod(null)
+    setShowBaggageDialog(true)
+  }
+
+  const handleBaggagePayment = async () => {
+    if (!baggagePaymentMethod || !ticket) return
     setIsProcessing(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    await new Promise(r => setTimeout(r, 1200))
+    const updated = {
+      ...ticket,
+      baggage: {
+        cabin: ticket.baggage.cabin,
+        checked: ticket.baggage.checked + extraCheckedKg,
+      },
+    }
+    setTicket(updated)
+    if (ticketIndex !== -1) mockTickets[ticketIndex] = updated
+    // Accumulate the baggage cost paid
+    setExtraBaggagePaidVND(prev => prev + bagCostVND)
     setIsProcessing(false)
-    setShowBaggageDialog(false)
-    alert('Baggage updated successfully!')
+    setBaggageStep('success')
   }
 
+  const closeBaggageDialog = () => {
+    setShowBaggageDialog(false)
+    setBaggageStep('select')
+    setBaggagePaymentMethod(null)
+    setExtraCheckedKg(0)
+  }
+
+  // ── Cancel handler ────────────────────────────────────────────────────────
   const handleCancelRequest = async () => {
     setIsProcessing(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    await new Promise(r => setTimeout(r, 1500))
     setIsProcessing(false)
     setShowCancelDialog(false)
     alert('Cancellation request submitted. A manager will review your request.')
     router.push('/customer/my-tickets')
-  }
-
-  const calculateUpgradePrice = () => {
-    if (!selectedUpgrade) return 0
-    return upgradePrices[selectedUpgrade] - upgradePrices[ticket.ticketClass]
-  }
-
-  const calculateBaggagePrice = () => {
-    const extraCabin = Math.max(0, cabinBags - ticket.baggage.cabin)
-    const extraChecked = Math.max(0, checkedBags - ticket.baggage.checked)
-    return (extraCabin + extraChecked) * baggagePrice
   }
 
   return (
@@ -154,7 +346,7 @@ export default function TicketDetailPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Badge variant="outline">{classLabels[ticket.ticketClass]}</Badge>
+              <Badge variant="outline">{CLASS_LABELS[ticket.ticketClass]}</Badge>
               <Badge className="bg-accent text-accent-foreground">
                 {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
               </Badge>
@@ -169,8 +361,7 @@ export default function TicketDetailPage() {
               <div className="text-3xl font-bold">{ticket.flight.departure.code}</div>
               <div className="text-xl">{ticket.flight.departure.time}</div>
               <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                {ticket.flight.departure.city}
+                <MapPin className="h-4 w-4" /> {ticket.flight.departure.city}
               </div>
               <div className="text-sm text-muted-foreground">{ticket.flight.departure.airport}</div>
             </div>
@@ -188,14 +379,13 @@ export default function TicketDetailPage() {
               <div className="text-3xl font-bold">{ticket.flight.arrival.code}</div>
               <div className="text-xl">{ticket.flight.arrival.time}</div>
               <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                {ticket.flight.arrival.city}
+                <MapPin className="h-4 w-4" /> {ticket.flight.arrival.city}
               </div>
               <div className="text-sm text-muted-foreground">{ticket.flight.arrival.airport}</div>
             </div>
           </div>
 
-          {/* Ticket Details Grid */}
+          {/* Ticket Details */}
           <div className="grid gap-4 rounded-lg bg-secondary/30 p-6 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <div className="text-sm text-muted-foreground">Booking Reference</div>
@@ -224,19 +414,31 @@ export default function TicketDetailPage() {
             <div className="flex gap-6">
               <div className="flex items-center gap-2">
                 <Luggage className="h-5 w-5 text-muted-foreground" />
-                <span>Cabin: {ticket.baggage.cabin} bag(s)</span>
+                <span>Cabin: {ticket.baggage.cabin} kg</span>
               </div>
               <div className="flex items-center gap-2">
                 <Luggage className="h-5 w-5 text-muted-foreground" />
-                <span>Checked: {ticket.baggage.checked} bag(s)</span>
+                <span>Checked: {ticket.baggage.checked} kg</span>
               </div>
             </div>
           </div>
 
           {/* Price */}
-          <div className="mt-6 flex items-center justify-between border-t pt-6">
-            <span className="text-muted-foreground">Total Paid</span>
-            <span className="text-2xl font-bold text-primary">${ticket.price}</span>
+          <div className="mt-6 border-t pt-6 space-y-2">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Ticket fare ({CLASS_LABELS[ticket.ticketClass]})</span>
+              <span>{formatVND(currentBasePrice)} VND</span>
+            </div>
+            {extraBaggagePaidVND > 0 && (
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Extra baggage</span>
+                <span>+{formatVND(extraBaggagePaidVND)} VND</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t pt-2">
+              <span className="font-semibold">Total Paid</span>
+              <span className="text-2xl font-bold text-primary">{formatVND(totalPaidVND)} VND</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -244,7 +446,6 @@ export default function TicketDetailPage() {
       {/* Action Cards */}
       {ticket.status === 'confirmed' && (
         <div className="grid gap-4 md:grid-cols-3">
-          {/* Upgrade Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -254,19 +455,16 @@ export default function TicketDetailPage() {
               <CardDescription>Upgrade to a better experience</CardDescription>
             </CardHeader>
             <CardContent>
-              {availableUpgrades().length > 0 ? (
-                <Button onClick={() => setShowUpgradeDialog(true)} className="w-full">
+              {availableUpgrades.length > 0 ? (
+                <Button onClick={openUpgradeDialog} className="w-full">
                   View Upgrade Options
                 </Button>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  You are already in the highest class
-                </p>
+                <p className="text-sm text-muted-foreground">You are already in the highest class</p>
               )}
             </CardContent>
           </Card>
 
-          {/* Baggage Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -276,13 +474,12 @@ export default function TicketDetailPage() {
               <CardDescription>Purchase additional baggage</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => setShowBaggageDialog(true)} className="w-full">
+              <Button onClick={openBaggageDialog} className="w-full">
                 Manage Baggage
               </Button>
             </CardContent>
           </Card>
 
-          {/* Cancel Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -292,11 +489,7 @@ export default function TicketDetailPage() {
               <CardDescription>Request ticket cancellation</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                variant="destructive"
-                onClick={() => setShowCancelDialog(true)}
-                className="w-full"
-              >
+              <Button variant="destructive" onClick={() => setShowCancelDialog(true)} className="w-full">
                 Request Cancellation
               </Button>
             </CardContent>
@@ -304,132 +497,223 @@ export default function TicketDetailPage() {
         </div>
       )}
 
-      {/* Upgrade Dialog */}
-      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <DialogContent>
+      {/* ── Upgrade Dialog ── */}
+      <Dialog open={showUpgradeDialog} onOpenChange={open => { if (!open) closeUpgradeDialog() }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Upgrade Your Class</DialogTitle>
             <DialogDescription>
-              Current class: {classLabels[ticket.ticketClass]}
+              Current class:{' '}
+              <span className="font-semibold text-foreground">{CLASS_LABELS[ticket.ticketClass]}</span>
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <RadioGroup value={selectedUpgrade} onValueChange={(v) => setSelectedUpgrade(v as TicketClass)}>
-              {availableUpgrades().map((upgrade) => (
-                <div
-                  key={upgrade}
-                  className="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <RadioGroupItem value={upgrade} id={upgrade} />
-                    <Label htmlFor={upgrade} className="cursor-pointer">
-                      {classLabels[upgrade]}
-                    </Label>
-                  </div>
-                  <span className="font-bold text-primary">
-                    +${upgradePrices[upgrade] - upgradePrices[ticket.ticketClass]}
-                  </span>
-                </div>
-              ))}
-            </RadioGroup>
-            {selectedUpgrade && (
-              <div className="mt-4 rounded-lg bg-secondary/50 p-4">
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Upgrade Cost</span>
-                  <span className="text-primary">${calculateUpgradePrice()}</span>
-                </div>
-              </div>
-            )}
+
+          {/* Steps */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+            <span className={upgradeStep === 'select' ? 'font-bold text-primary' : ''}>1. Select</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className={upgradeStep === 'payment' ? 'font-bold text-primary' : ''}>2. Payment</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className={upgradeStep === 'success' ? 'font-bold text-primary' : ''}>3. Done</span>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpgrade} disabled={!selectedUpgrade || isProcessing}>
-              {isProcessing ? 'Processing...' : 'Confirm Upgrade'}
-            </Button>
-          </DialogFooter>
+
+          {/* Select step */}
+          {upgradeStep === 'select' && (
+            <div className="py-2 space-y-4">
+              <RadioGroup
+                value={selectedUpgrade}
+                onValueChange={v => setSelectedUpgrade(v as TicketClass)}
+              >
+                {availableUpgrades.map(cls => {
+                  const delta =
+                    getBasePrice(ticket.flightId, cls) -
+                    getBasePrice(ticket.flightId, ticket.ticketClass)
+                  return (
+                    <div
+                      key={cls}
+                      className="flex items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-secondary/30 transition-colors"
+                      onClick={() => setSelectedUpgrade(cls)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <RadioGroupItem value={cls} id={`upg-${cls}`} />
+                        <Label htmlFor={`upg-${cls}`} className="cursor-pointer font-medium">
+                          {CLASS_LABELS[cls]}
+                        </Label>
+                      </div>
+                      <span className="font-bold text-primary">+{formatVND(delta)} VND</span>
+                    </div>
+                  )
+                })}
+              </RadioGroup>
+
+              {selectedUpgrade && (
+                <div className="rounded-lg bg-secondary/50 p-4 flex justify-between items-center">
+                  <span className="font-semibold">Upgrade Cost</span>
+                  <span className="text-xl font-bold text-primary">{formatVND(upgradePrice)} VND</span>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closeUpgradeDialog}>Cancel</Button>
+                <Button onClick={() => setUpgradeStep('payment')} disabled={!selectedUpgrade}>
+                  Next: Payment <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {/* Payment step */}
+          {upgradeStep === 'payment' && (
+            <div className="py-2">
+              <p className="text-sm text-muted-foreground mb-4">
+                Upgrading to{' '}
+                <span className="font-semibold text-foreground">
+                  {selectedUpgrade ? CLASS_LABELS[selectedUpgrade as TicketClass] : ''}
+                </span>
+              </p>
+              <PaymentStep
+                amountVND={upgradePrice}
+                paymentMethod={upgradePaymentMethod}
+                setPaymentMethod={setUpgradePaymentMethod}
+                isProcessing={isProcessing}
+                onConfirm={handleUpgradePayment}
+                onBack={() => setUpgradeStep('select')}
+              />
+            </div>
+          )}
+
+          {/* Success step */}
+          {upgradeStep === 'success' && (
+            <div className="py-6 flex flex-col items-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                <Check className="w-9 h-9 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-lg font-bold">Upgrade Successful!</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your ticket has been upgraded to{' '}
+                  <span className="font-semibold text-foreground">{CLASS_LABELS[ticket.ticketClass]}</span>.
+                </p>
+              </div>
+              <Button onClick={closeUpgradeDialog} className="w-full">Close</Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
-      {/* Baggage Dialog */}
-      <Dialog open={showBaggageDialog} onOpenChange={setShowBaggageDialog}>
-        <DialogContent>
+      {/* ── Baggage Dialog ── */}
+      <Dialog open={showBaggageDialog} onOpenChange={open => { if (!open) closeBaggageDialog() }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Manage Baggage</DialogTitle>
-            <DialogDescription>Add extra baggage to your booking</DialogDescription>
+            <DialogTitle>Add Baggage</DialogTitle>
+            <DialogDescription>
+              {formatVND(BAGGAGE_VND_PER_KG)} VND per kg — add extra weight to your allowance
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Cabin Bags</Label>
-                <p className="text-sm text-muted-foreground">7kg each</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCabinBags(Math.max(ticket.baggage.cabin, cabinBags - 1))}
-                  disabled={cabinBags <= ticket.baggage.cabin}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <span className="w-8 text-center text-lg font-medium">{cabinBags}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCabinBags(Math.min(4, cabinBags + 1))}
-                  disabled={cabinBags >= 4}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Checked Bags</Label>
-                <p className="text-sm text-muted-foreground">23kg each</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCheckedBags(Math.max(ticket.baggage.checked, checkedBags - 1))}
-                  disabled={checkedBags <= ticket.baggage.checked}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <span className="w-8 text-center text-lg font-medium">{checkedBags}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCheckedBags(Math.min(5, checkedBags + 1))}
-                  disabled={checkedBags >= 5}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="rounded-lg bg-secondary/50 p-4">
-              <div className="flex justify-between">
-                <span>Additional baggage cost</span>
-                <span className="font-bold text-primary">${calculateBaggagePrice()}</span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">${baggagePrice} per extra bag</p>
-            </div>
+
+          {/* Steps */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+            <span className={baggageStep === 'select' ? 'font-bold text-primary' : ''}>1. Select</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className={baggageStep === 'payment' ? 'font-bold text-primary' : ''}>2. Payment</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className={baggageStep === 'success' ? 'font-bold text-primary' : ''}>3. Done</span>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBaggageDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddBaggage} disabled={calculateBaggagePrice() === 0 || isProcessing}>
-              {isProcessing ? 'Processing...' : 'Add Baggage'}
-            </Button>
-          </DialogFooter>
+
+          {/* Select step */}
+          {baggageStep === 'select' && (
+            <div className="space-y-5 py-2">
+              {/* Current allowance */}
+              <div className="rounded-lg bg-secondary/30 p-3 text-sm">
+                <p className="font-medium mb-1">Current allowance</p>
+                <div className="flex gap-4 text-muted-foreground">
+                  <span>Cabin: <strong className="text-foreground">{ticket.baggage.cabin} kg</strong></span>
+                  <span>Checked: <strong className="text-foreground">{ticket.baggage.checked} kg</strong></span>
+                </div>
+              </div>
+
+              {/* Checked extra kg only – cabin upsell not allowed */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Extra Checked Weight</Label>
+                  <p className="text-xs text-muted-foreground">{formatVND(BAGGAGE_VND_PER_KG)} VND / kg</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button variant="outline" size="icon"
+                    onClick={() => setExtraCheckedKg(Math.max(0, extraCheckedKg - KG_PER_BAG))}
+                    disabled={extraCheckedKg === 0}>
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-16 text-center font-medium">{extraCheckedKg} kg</span>
+                  <Button variant="outline" size="icon"
+                    onClick={() => setExtraCheckedKg(extraCheckedKg + KG_PER_BAG)}
+                    disabled={extraCheckedKg >= 50}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Cost summary */}
+              <div className="rounded-lg bg-secondary/50 p-4 space-y-1">
+                {extraCheckedKg > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>Checked +{extraCheckedKg} kg</span>
+                    <span>{formatVND(extraCheckedKg * BAGGAGE_VND_PER_KG)} VND</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold border-t pt-2 mt-1">
+                  <span>Total</span>
+                  <span className="text-primary">{formatVND(bagCostVND)} VND</span>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closeBaggageDialog}>Cancel</Button>
+                <Button onClick={() => setBaggageStep('payment')} disabled={bagCostVND === 0}>
+                  Next: Payment <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {/* Payment step */}
+          {baggageStep === 'payment' && (
+            <div className="py-2">
+              <p className="text-sm text-muted-foreground mb-4">
+                Adding{' '}
+                <span className="font-semibold">{extraCheckedKg} kg checked</span>
+              </p>
+              <PaymentStep
+                amountVND={bagCostVND}
+                paymentMethod={baggagePaymentMethod}
+                setPaymentMethod={setBaggagePaymentMethod}
+                isProcessing={isProcessing}
+                onConfirm={handleBaggagePayment}
+                onBack={() => setBaggageStep('select')}
+              />
+            </div>
+          )}
+
+          {/* Success step */}
+          {baggageStep === 'success' && (
+            <div className="py-6 flex flex-col items-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                <Check className="w-9 h-9 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-lg font-bold">Baggage Updated!</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  New checked allowance:{' '}
+                  <span className="font-semibold text-foreground">Checked {ticket.baggage.checked} kg</span>
+                </p>
+              </div>
+              <Button onClick={closeBaggageDialog} className="w-full">Close</Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
-      {/* Cancel Dialog */}
+      {/* ── Cancel Dialog ── */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -438,8 +722,8 @@ export default function TicketDetailPage() {
               Request Cancellation
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Your cancellation request will be reviewed by a manager. Refund amount depends on
-              your fare type and how close to departure you cancel.
+              Your cancellation request will be reviewed by a manager. Refund amount depends on your
+              fare type and how close to departure you cancel.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">
@@ -448,16 +732,14 @@ export default function TicketDetailPage() {
               id="reason"
               placeholder="Please provide a reason for cancellation..."
               value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
+              onChange={e => setCancelReason(e.target.value)}
               className="mt-2"
             />
             <div className="mt-4 rounded-lg bg-destructive/10 p-4">
               <p className="text-sm font-medium text-destructive">
-                Estimated refund: ${Math.round(ticket.price * 0.9)} (90% of ticket price)
+                Estimated refund: {formatVND(Math.round(ticket.price * 0.9))} VND (90% of ticket price)
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Final amount subject to manager approval
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Final amount subject to manager approval</p>
             </div>
           </div>
           <AlertDialogFooter>
@@ -467,7 +749,7 @@ export default function TicketDetailPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isProcessing}
             >
-              {isProcessing ? 'Submitting...' : 'Submit Request'}
+              {isProcessing ? 'Submitting…' : 'Submit Request'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

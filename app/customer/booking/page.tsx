@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -430,9 +430,9 @@ export default function CustomerBookingPage() {
 
   const passCount = parseInt(passengers, 10) || 1;
   const basePrices = selectedFlight ? passengerClasses.map(c => getBasePrice(selectedFlight.id, c)) : Array(passCount).fill(0);
-  // Surcharge only when user explicitly used seat map
+  // Surcharge only when user explicitly chose a seat (per passenger)
   const totalSurcharge = usedSeatSelection
-    ? chosenTypes.reduce((s, t) => s + SEAT_SURCHARGE[t], 0)
+    ? chosenTypes.reduce((s, t, i) => s + (chosenSeats[i] ? SEAT_SURCHARGE[t] : 0), 0)
     : 0;
 
   // ── Handlers ──
@@ -485,9 +485,12 @@ export default function CustomerBookingPage() {
       return autoType;
     });
 
+    // usedSeatSelection is only true if the user actually chose at least one seat manually
+    const anySeatChosen = withSeatMap && chosenSeats.some(s => s !== "");
+
     setChosenSeats(finalSeats);
     setChosenTypes(finalTypes);
-    setUsedSeatSelection(withSeatMap);
+    setUsedSeatSelection(anySeatChosen);
     setPassForms(Array.from({ length: passCount }, emptyPassenger));
     setPhoneErrors({}); setEmailErrors({});
     setDialogOpen(false); setView("info");
