@@ -1,0 +1,77 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Auth Test</title>
+</head>
+<body>
+
+    <h2>Register</h2>
+    <input type="text" id="regName" placeholder="Name"><br><br>
+    <input type="password" id="regPass" placeholder="Password"><br><br>
+    <button onclick="register()">Register</button>
+
+    <h2>Login</h2>
+    <input type="text" id="loginName" placeholder="Name"><br><br>
+    <input type="password" id="loginPass" placeholder="Password"><br><br>
+    <button onclick="login()">Login</button>
+
+    <h3 id="result"></h3>
+
+    <script>
+        const API_URL = "http://localhost:5290/api/auth"; // đúng route của Auth.cs
+
+        // REGISTER
+        async function register() {
+            const name = document.getElementById("regName").value;
+            const pass = document.getElementById("regPass").value;
+
+            const res = await fetch(API_URL + "/register", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    name: name,
+                    pass: pass,
+
+                    // 👇 bắt buộc vì Passenger có Required
+                    gender: 1,
+                    phoneNumber: "0123456789",
+                    email: "test@gmail.com",
+                    pointReward: 0
+                })
+            });
+
+            const data = await res.json();
+            document.getElementById("result").innerText = data.message;
+        }
+
+        // LOGIN
+        async function login() {
+            const name = document.getElementById("loginName").value;
+            const pass = document.getElementById("loginPass").value;
+
+            const res = await fetch(API_URL + "/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    name: name,
+                    pass: pass
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById("result").innerText = data.message;
+            } else {
+                const text = await res.text();
+                document.getElementById("result").innerText = text;
+            }
+        }
+    </script>
+
+</body>
+</html>
