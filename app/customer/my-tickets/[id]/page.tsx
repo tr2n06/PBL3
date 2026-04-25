@@ -86,6 +86,22 @@ const BAGGAGE_VND_PER_KG = 30_000
 // Each +/- button adds/removes exactly 1 kg
 const KG_PER_BAG = 1
 
+// ─── Seat selection for upgrade ─────────────────────────────────────────────
+type SeatType = 'window' | 'aisle' | 'middle'
+const SEAT_SURCHARGE: Record<SeatType, number> = { window: 350_000, aisle: 150_000, middle: 0 }
+const SEAT_TYPE_INFO: Record<SeatType, { label: string; icon: string; available: string; dot: string }> = {
+  window: { label: 'Window', icon: '🪟', available: 'border-[#3a6090] bg-[#eef3f9] text-[#1a3557] hover:bg-[#dce8f4]', dot: 'bg-[#3a6090]' },
+  aisle:  { label: 'Aisle',  icon: '↔',  available: 'border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100', dot: 'bg-emerald-400' },
+  middle: { label: 'Middle', icon: '●',  available: 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100', dot: 'bg-amber-300' },
+}
+interface SeatColDef { col: string; type: SeatType }
+const CABIN_CONFIG: Record<TicketClass, { rows: number[]; left: SeatColDef[]; right: SeatColDef[]; label: string }> = {
+  economy:    { rows: [20,21,22,23,24,25,26,27], left: [{col:'A',type:'window'},{col:'B',type:'middle'},{col:'C',type:'aisle'}], right: [{col:'D',type:'aisle'},{col:'E',type:'middle'},{col:'F',type:'window'}], label: 'Economy Cabin' },
+  business:   { rows: [5,6,7,8,9,10], left: [{col:'A',type:'window'},{col:'B',type:'aisle'}], right: [{col:'C',type:'aisle'},{col:'D',type:'window'}], label: 'Premium Economy Cabin' },
+  firstClass: { rows: [1,2,3,4], left: [{col:'A',type:'window'}], right: [{col:'B',type:'window'}], label: 'Business Suite' },
+}
+function isSeatOccupied(flightId: string, seatId: string) { return hashStr(flightId + seatId) % 4 === 0 }
+
 type PaymentMethod = 'card' | 'qr' | null
 
 // ─── Payment step ─────────────────────────────────────────────────────────────
@@ -205,9 +221,12 @@ export default function TicketDetailPage() {
 
   // ── Upgrade dialog ────────────────────────────────────────────────────────
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false)
-  const [upgradeStep, setUpgradeStep] = useState<'select' | 'payment' | 'success'>('select')
+  const [upgradeStep, setUpgradeStep] = useState<'select' | 'seat' | 'payment' | 'success'>('select')
   const [selectedUpgrade, setSelectedUpgrade] = useState<TicketClass | ''>('')
   const [upgradePaymentMethod, setUpgradePaymentMethod] = useState<PaymentMethod>(null)
+  const [upgradeSeat, setUpgradeSeat] = useState<string>('')
+  const [upgradeType, setUpgradeType] = useState<SeatType>('window')
+  const [upgradeSeatChosen, setUpgradeSeatChosen] = useState(false)
 
   // ── Baggage dialog ────────────────────────────────────────────────────────
   const [showBaggageDialog, setShowBaggageDialog] = useState(false)
@@ -236,11 +255,13 @@ export default function TicketDetailPage() {
 
   const availableUpgrades = getAvailableUpgrades(ticket.ticketClass)
 
-  // Upgrade cost = difference in base prices for this flight
-  const upgradePrice = selectedUpgrade
+  // Upgrade cost = difference in base prices + optional seat surcharge
+  const upgradeClassDiff = selectedUpgrade
     ? getBasePrice(ticket.flightId, selectedUpgrade as TicketClass) -
       getBasePrice(ticket.flightId, ticket.ticketClass)
     : 0
+  const upgradeSeatFee = upgradeSeatChosen ? SEAT_SURCHARGE[upgradeType] : 0
+  const upgradePrice = upgradeClassDiff + upgradeSeatFee
 
   // Baggage cost: 30,000 VND per kg (checked only)
   const bagCostVND = extraCheckedKg * BAGGAGE_VND_PER_KG
@@ -254,6 +275,9 @@ export default function TicketDetailPage() {
     setSelectedUpgrade('')
     setUpgradeStep('select')
     setUpgradePaymentMethod(null)
+    setUpgradeSeat('')
+    setUpgradeType('window')
+    setUpgradeSeatChosen(false)
     setShowUpgradeDialog(true)
   }
 
@@ -262,9 +286,9 @@ export default function TicketDetailPage() {
     setIsProcessing(true)
     await new Promise(r => setTimeout(r, 1200))
     const newClass = selectedUpgrade as TicketClass
-    // Price updates to the base price of the new class
     const newPrice = getBasePrice(ticket.flightId, newClass)
-    const updated = { ...ticket, ticketClass: newClass, price: newPrice }
+    const finalSeat = upgradeSeatChosen && upgradeSeat ? upgradeSeat : ticket.seatNumber
+    const updated = { ...ticket, ticketClass: newClass, price: newPrice, seatNumber: finalSeat }
     setTicket(updated)
     if (ticketIndex !== -1) mockTickets[ticketIndex] = updated
     setIsProcessing(false)
@@ -276,6 +300,9 @@ export default function TicketDetailPage() {
     setUpgradeStep('select')
     setSelectedUpgrade('')
     setUpgradePaymentMethod(null)
+    setUpgradeSeat('')
+    setUpgradeType('window')
+    setUpgradeSeatChosen(false)
   }
 
   // ── Baggage handlers ──────────────────────────────────────────────────────
@@ -512,9 +539,11 @@ export default function TicketDetailPage() {
           <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
             <span className={upgradeStep === 'select' ? 'font-bold text-primary' : ''}>1. Select</span>
             <ChevronRight className="h-3 w-3" />
-            <span className={upgradeStep === 'payment' ? 'font-bold text-primary' : ''}>2. Payment</span>
+            <span className={upgradeStep === 'seat' ? 'font-bold text-primary' : ''}>2. Seat</span>
             <ChevronRight className="h-3 w-3" />
-            <span className={upgradeStep === 'success' ? 'font-bold text-primary' : ''}>3. Done</span>
+            <span className={upgradeStep === 'payment' ? 'font-bold text-primary' : ''}>3. Payment</span>
+            <ChevronRight className="h-3 w-3" />
+            <span className={upgradeStep === 'success' ? 'font-bold text-primary' : ''}>4. Done</span>
           </div>
 
           {/* Select step */}
@@ -548,19 +577,110 @@ export default function TicketDetailPage() {
 
               {selectedUpgrade && (
                 <div className="rounded-lg bg-secondary/50 p-4 flex justify-between items-center">
-                  <span className="font-semibold">Upgrade Cost</span>
-                  <span className="text-xl font-bold text-primary">{formatVND(upgradePrice)} VND</span>
+                  <span className="font-semibold">Upgrade Cost (base)</span>
+                  <span className="text-xl font-bold text-primary">{formatVND(upgradeClassDiff)} VND</span>
                 </div>
               )}
 
               <DialogFooter>
                 <Button variant="outline" onClick={closeUpgradeDialog}>Cancel</Button>
-                <Button onClick={() => setUpgradeStep('payment')} disabled={!selectedUpgrade}>
-                  Next: Payment <ChevronRight className="h-4 w-4 ml-1" />
+                <Button onClick={() => { setUpgradeSeat(''); setUpgradeSeatChosen(false); setUpgradeStep('seat') }} disabled={!selectedUpgrade}>
+                  Next: Choose Seat <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </DialogFooter>
             </div>
           )}
+
+          {/* Seat step */}
+          {upgradeStep === 'seat' && selectedUpgrade && (() => {
+            const cls = selectedUpgrade as TicketClass
+            const { rows, left, right, label } = CABIN_CONFIG[cls]
+            const allCols = [...left, ...right]
+            return (
+              <div className="py-2 space-y-3">
+                <p className="text-sm text-muted-foreground">Upgrading to <span className="font-semibold text-foreground">{CLASS_LABELS[cls]}</span> — optionally pick a seat or skip.</p>
+                <div className="text-xs text-center font-medium text-gray-400 uppercase tracking-wider">{label}</div>
+                {/* Legend */}
+                <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center">
+                  {(['window','aisle','middle'] as SeatType[]).map(t => (
+                    <span key={t} className="flex items-center gap-1 text-[11px]">
+                      <span className={`w-3 h-3 rounded-sm ${SEAT_TYPE_INFO[t].dot}`} />
+                      <span className="font-medium text-gray-700">{SEAT_TYPE_INFO[t].label}</span>
+                      <span className="text-gray-400">{SEAT_SURCHARGE[t] > 0 ? `+${formatVND(SEAT_SURCHARGE[t])} VND` : 'Free'}</span>
+                    </span>
+                  ))}
+                  <span className="flex items-center gap-1 text-[11px]"><span className="w-3 h-3 rounded-sm bg-gray-200 border border-gray-300" /><span className="text-gray-400">Taken</span></span>
+                </div>
+                {/* Seat grid */}
+                <div className="overflow-y-auto max-h-52 space-y-1 rounded-lg border bg-slate-50 p-3">
+                  {/* Column header */}
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <span className="w-6 shrink-0" />
+                    {left.map(({col}) => <span key={col} className="w-9 text-center text-[10px] font-bold text-gray-400">{col}</span>)}
+                    <span className="w-4 shrink-0" />
+                    {right.map(({col}) => <span key={col} className="w-9 text-center text-[10px] font-bold text-gray-400">{col}</span>)}
+                    <span className="w-6 shrink-0" />
+                  </div>
+                  {rows.map(row => (
+                    <div key={row} className="flex items-center justify-center gap-1">
+                      <span className="w-6 text-[10px] text-gray-400 text-right font-mono shrink-0">{row}</span>
+                      {left.map(({col, type}) => {
+                        const id = `${row}${col}`
+                        const occupied = isSeatOccupied(ticket.flightId, id)
+                        const selected = upgradeSeat === id
+                        let cls2 = 'w-9 h-9 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-center '
+                        if (occupied) cls2 += 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
+                        else if (selected) cls2 += 'bg-[#1a3557] border-[#1a3557] text-white scale-110 shadow-lg'
+                        else cls2 += SEAT_TYPE_INFO[type].available + ' cursor-pointer hover:scale-105'
+                        return <button key={col} type="button" disabled={occupied}
+                          className={cls2}
+                          title={occupied ? 'Taken' : `${SEAT_TYPE_INFO[type].label} · ${SEAT_SURCHARGE[type] > 0 ? '+' + formatVND(SEAT_SURCHARGE[type]) + ' VND' : 'Free'}`}
+                          onClick={() => { if (!occupied) { if (upgradeSeat === id) { setUpgradeSeat(''); setUpgradeSeatChosen(false) } else { setUpgradeSeat(id); setUpgradeType(type); setUpgradeSeatChosen(true) } } }}
+                        >{occupied ? '✕' : selected ? '✓' : col}</button>
+                      })}
+                      <div className="w-4 shrink-0" />
+                      {right.map(({col, type}) => {
+                        const id = `${row}${col}`
+                        const occupied = isSeatOccupied(ticket.flightId, id)
+                        const selected = upgradeSeat === id
+                        let cls2 = 'w-9 h-9 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-center '
+                        if (occupied) cls2 += 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
+                        else if (selected) cls2 += 'bg-[#1a3557] border-[#1a3557] text-white scale-110 shadow-lg'
+                        else cls2 += SEAT_TYPE_INFO[type].available + ' cursor-pointer hover:scale-105'
+                        return <button key={col} type="button" disabled={occupied}
+                          className={cls2}
+                          title={occupied ? 'Taken' : `${SEAT_TYPE_INFO[type].label} · ${SEAT_SURCHARGE[type] > 0 ? '+' + formatVND(SEAT_SURCHARGE[type]) + ' VND' : 'Free'}`}
+                          onClick={() => { if (!occupied) { if (upgradeSeat === id) { setUpgradeSeat(''); setUpgradeSeatChosen(false) } else { setUpgradeSeat(id); setUpgradeType(type); setUpgradeSeatChosen(true) } } }}
+                        >{occupied ? '✕' : selected ? '✓' : col}</button>
+                      })}
+                      <span className="w-6 text-[10px] text-gray-400 text-left font-mono shrink-0">{row}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Selection info */}
+                {upgradeSeatChosen && upgradeSeat ? (
+                  <div className="rounded-lg bg-secondary/50 p-3 space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span>Seat {upgradeSeat} <span className="text-muted-foreground">({SEAT_TYPE_INFO[upgradeType].label})</span></span>
+                      <span>{upgradeSeatFee > 0 ? `+${formatVND(upgradeSeatFee)} VND` : 'Free'}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-sm border-t pt-1">
+                      <span>Total upgrade</span>
+                      <span className="text-primary">{formatVND(upgradePrice)} VND</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-center text-muted-foreground">No seat selected — current seat kept or auto-assigned</p>
+                )}
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setUpgradeStep('select')}><ArrowLeft className="h-4 w-4 mr-1" />Back</Button>
+                  <Button onClick={() => setUpgradeStep('payment')}>
+                    Next: Payment <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </DialogFooter>
+              </div>
+            )
+          })()}
 
           {/* Payment step */}
           {upgradeStep === 'payment' && (
@@ -570,6 +690,7 @@ export default function TicketDetailPage() {
                 <span className="font-semibold text-foreground">
                   {selectedUpgrade ? CLASS_LABELS[selectedUpgrade as TicketClass] : ''}
                 </span>
+                {upgradeSeatChosen && upgradeSeat && <span className="text-muted-foreground"> · Seat {upgradeSeat} ({SEAT_TYPE_INFO[upgradeType].label})</span>}
               </p>
               <PaymentStep
                 amountVND={upgradePrice}
@@ -577,7 +698,7 @@ export default function TicketDetailPage() {
                 setPaymentMethod={setUpgradePaymentMethod}
                 isProcessing={isProcessing}
                 onConfirm={handleUpgradePayment}
-                onBack={() => setUpgradeStep('select')}
+                onBack={() => setUpgradeStep('seat')}
               />
             </div>
           )}
