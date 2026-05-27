@@ -13,12 +13,12 @@ namespace Pbl3.DataAccess.Models.Bookings
         [Required]
         [Column(TypeName = "varchar(8)")]
         public string codeBooking { get; set; }
-        public int idUser { get; set; }
+        public int? idUser { get; set; }
         [Required]
         [Column(TypeName = "varchar(30)")]
-        public string codeTransaction { get; set; }
+        public string? codeTransaction { get; set; }
         [Required]
-        public int bookedPrice { get; set; }
+        public decimal bookedPrice { get; set; }
         [Required]
         public DateTime bookedTime { get; set; }
         public virtual List<Ticket> tickets { get; set; } = new List<Ticket>();

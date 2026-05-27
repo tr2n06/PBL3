@@ -1,5 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Pbl3.DataAccess.Models.Flights;
+using Pbl3.DataAccess.Models.Others;
 
 namespace Pbl3.DataAccess.Models.Users
 {
@@ -8,5 +10,6 @@ namespace Pbl3.DataAccess.Models.Users
     {
         [Required]
         public DateOnly joinedDate { get; set; }
+        
     }
 }

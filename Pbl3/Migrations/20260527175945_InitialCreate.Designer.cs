@@ -12,7 +12,7 @@ using Pbl3.DataAccess.Data;
 namespace Pbl3.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260424035502_InitialCreate")]
+    [Migration("20260527175945_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -33,8 +33,8 @@ namespace Pbl3.Migrations
                     b.Property<string>("codeBooking")
                         .HasColumnType("varchar(8)");
 
-                    b.Property<int>("bookedPrice")
-                        .HasColumnType("int");
+                    b.Property<decimal>("bookedPrice")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("bookedTime")
                         .HasColumnType("datetime2");
@@ -43,7 +43,7 @@ namespace Pbl3.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(30)");
 
-                    b.Property<int>("idUser")
+                    b.Property<int?>("idUser")
                         .HasColumnType("int");
 
                     b.HasKey("codeBooking");
@@ -59,7 +59,7 @@ namespace Pbl3.Migrations
             modelBuilder.Entity("Pbl3.DataAccess.Models.Bookings.Ticket", b =>
                 {
                     b.Property<string>("codeTicket")
-                        .HasColumnType("varchar(6)");
+                        .HasColumnType("varchar(16)");
 
                     b.Property<bool>("CanSelectSeat")
                         .HasColumnType("bit");
@@ -82,6 +82,18 @@ namespace Pbl3.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(3)");
 
+                    b.Property<DateOnly>("dateOfBirth")
+                        .HasColumnType("date");
+
+                    b.Property<string>("email")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("gender")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<string>("identityCard")
                         .IsRequired()
                         .HasColumnType("varchar(20)");
@@ -91,8 +103,16 @@ namespace Pbl3.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<int>("price")
-                        .HasColumnType("int");
+                    b.Property<string>("passengerType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("codeTicket");
 
@@ -104,6 +124,25 @@ namespace Pbl3.Migrations
                         .IsUnique();
 
                     b.ToTable("Ticket");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.DiscountFlight", b =>
+                {
+                    b.Property<string>("codeFlight")
+                        .HasColumnType("varchar(6)");
+
+                    b.Property<DateOnly>("arriveDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("arriveTime")
+                        .HasColumnType("time");
+
+                    b.Property<int>("discountPercentage")
+                        .HasColumnType("int");
+
+                    b.HasKey("codeFlight", "arriveDate", "arriveTime");
+
+                    b.ToTable("DiscountFlights");
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.Flight", b =>
@@ -123,8 +162,12 @@ namespace Pbl3.Migrations
                     b.Property<TimeOnly>("landingTime")
                         .HasColumnType("time");
 
-                    b.Property<int>("price")
-                        .HasColumnType("int");
+                    b.Property<decimal>("price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("codeFlight", "arriveDate", "arriveTime");
 
@@ -148,18 +191,15 @@ namespace Pbl3.Migrations
                     b.Property<TimeOnly>("arriveTime")
                         .HasColumnType("time");
 
-                    b.Property<int>("codeType")
-                        .HasColumnType("int");
-
                     b.Property<bool>("isBooked")
                         .HasColumnType("bit");
 
                     b.Property<string>("ticketcodeTicket")
-                        .HasColumnType("varchar(6)");
+                        .HasColumnType("varchar(16)");
 
                     b.HasKey("codeSeat", "codeFlight", "arriveDate", "arriveTime");
 
-                    b.HasIndex("codeType")
+                    b.HasIndex("codeSeat")
                         .IsUnique();
 
                     b.HasIndex("ticketcodeTicket");
@@ -167,6 +207,21 @@ namespace Pbl3.Migrations
                     b.HasIndex("codeFlight", "arriveDate", "arriveTime");
 
                     b.ToTable("FlightSeat");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.Seat", b =>
+                {
+                    b.Property<string>("codeSeat")
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<int?>("codeType")
+                        .HasColumnType("int");
+
+                    b.HasKey("codeSeat");
+
+                    b.HasIndex("codeType");
+
+                    b.ToTable("Seat");
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.TicketType", b =>
@@ -188,8 +243,8 @@ namespace Pbl3.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<int>("priceBooked")
-                        .HasColumnType("int");
+                    b.Property<decimal>("priceBooked")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("weightBaggage")
                         .HasColumnType("int");
@@ -204,16 +259,31 @@ namespace Pbl3.Migrations
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Others.Baggage", b =>
                 {
+                    b.Property<string>("codeBaggage")
+                        .HasColumnType("varchar(19)");
+
                     b.Property<string>("codeTicket")
-                        .HasColumnType("varchar(6)");
+                        .IsRequired()
+                        .HasColumnType("varchar(16)");
 
                     b.Property<string>("codeTransaction")
+                        .IsRequired()
                         .HasColumnType("varchar(30)");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("weight")
                         .HasColumnType("int");
 
-                    b.HasKey("codeTicket", "codeTransaction");
+                    b.HasKey("codeBaggage");
+
+                    b.HasIndex("codeTicket");
 
                     b.HasIndex("codeTransaction")
                         .IsUnique();
@@ -257,6 +327,9 @@ namespace Pbl3.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("varchar(10)");
 
+                    b.Property<float>("length")
+                        .HasColumnType("real");
+
                     b.Property<string>("to")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -269,6 +342,49 @@ namespace Pbl3.Migrations
                     b.HasIndex("to");
 
                     b.ToTable("FromTo");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Others.Request", b =>
+                {
+                    b.Property<string>("id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("createAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("requester_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("reviewed_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("reviewer_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("requester_id");
+
+                    b.HasIndex("reviewer_id");
+
+                    b.ToTable("Request");
+
+                    b.UseTptMappingStrategy();
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Payment.Transaction", b =>
@@ -303,20 +419,48 @@ namespace Pbl3.Migrations
                     b.ToTable("Transaction");
                 });
 
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Promotions.Promotion", b =>
+                {
+                    b.Property<string>("id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateOnly>("arriveDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("arriveTime")
+                        .HasColumnType("time");
+
+                    b.Property<string>("codeFlight")
+                        .IsRequired()
+                        .HasColumnType("varchar(6)");
+
+                    b.Property<DateTime>("createAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("discount")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("codeFlight", "arriveDate", "arriveTime")
+                        .IsUnique();
+
+                    b.ToTable("Promotion");
+                });
+
             modelBuilder.Entity("Pbl3.DataAccess.Models.Users.User", b =>
                 {
                     b.Property<int>("id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
-
                     b.Property<string>("address")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<DateOnly>("dateOfBirth")
+                    b.Property<DateTime>("createdAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly?>("dateOfBirth")
                         .HasColumnType("date");
 
                     b.Property<string>("email")
@@ -333,9 +477,13 @@ namespace Pbl3.Migrations
 
                     b.Property<string>("pass")
                         .IsRequired()
-                        .HasColumnType("varchar(10)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("phoneNumber")
+                        .IsRequired()
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<string>("status")
                         .IsRequired()
                         .HasColumnType("varchar(10)");
 
@@ -353,6 +501,118 @@ namespace Pbl3.Migrations
                     b.ToTable("User");
 
                     b.UseTptMappingStrategy();
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Bookings.CancelRequest", b =>
+                {
+                    b.HasBaseType("Pbl3.DataAccess.Models.Others.Request");
+
+                    b.Property<int?>("Userid")
+                        .HasColumnType("int");
+
+                    b.Property<string>("codeTicket")
+                        .IsRequired()
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasIndex("Userid");
+
+                    b.HasIndex("codeTicket")
+                        .IsUnique()
+                        .HasFilter("[codeTicket] IS NOT NULL");
+
+                    b.ToTable("CancelRequest");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.FlightRequest", b =>
+                {
+                    b.HasBaseType("Pbl3.DataAccess.Models.Others.Request");
+
+                    b.Property<DateOnly>("arriveDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("arriveTime")
+                        .HasColumnType("time");
+
+                    b.Property<string>("codeFlight")
+                        .IsRequired()
+                        .HasColumnType("varchar(6)");
+
+                    b.Property<int>("discount")
+                        .HasColumnType("int");
+
+                    b.HasIndex("codeFlight", "arriveDate", "arriveTime");
+
+                    b.ToTable("FlightRequest");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Promotions.PromotionCancelRequest", b =>
+                {
+                    b.HasBaseType("Pbl3.DataAccess.Models.Others.Request");
+
+                    b.Property<string>("promotion_id")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasIndex("promotion_id")
+                        .IsUnique()
+                        .HasFilter("[promotion_id] IS NOT NULL");
+
+                    b.ToTable("PromotionCancelRequest");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Promotions.PromotionRequest", b =>
+                {
+                    b.HasBaseType("Pbl3.DataAccess.Models.Others.Request");
+
+                    b.Property<DateOnly>("arriveDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("arriveTime")
+                        .HasColumnType("time");
+
+                    b.Property<string>("codeFlight")
+                        .IsRequired()
+                        .HasColumnType("varchar(6)");
+
+                    b.Property<int>("discount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasIndex("codeFlight", "arriveDate", "arriveTime")
+                        .IsUnique()
+                        .HasFilter("[codeFlight] IS NOT NULL AND [arriveDate] IS NOT NULL AND [arriveTime] IS NOT NULL");
+
+                    b.ToTable("PromotionRequest");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Users.StaffRequest", b =>
+                {
+                    b.HasBaseType("Pbl3.DataAccess.Models.Others.Request");
+
+                    b.Property<string>("address")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("email")
+                        .IsRequired()
+                        .HasColumnType("varchar(254)");
+
+                    b.Property<string>("phoneNumber")
+                        .IsRequired()
+                        .HasColumnType("varchar(10)");
+
+                    b.ToTable("StaffRequest");
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Users.Admin", b =>
@@ -390,14 +650,13 @@ namespace Pbl3.Migrations
                     b.HasOne("Pbl3.DataAccess.Models.Payment.Transaction", "transaction")
                         .WithOne()
                         .HasForeignKey("Pbl3.DataAccess.Models.Bookings.Booking", "codeTransaction")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Pbl3.DataAccess.Models.Users.User", "user")
                         .WithMany("bookings")
                         .HasForeignKey("idUser")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("transaction");
 
@@ -409,19 +668,19 @@ namespace Pbl3.Migrations
                     b.HasOne("Pbl3.DataAccess.Models.Bookings.Booking", "booking")
                         .WithMany("tickets")
                         .HasForeignKey("codeBooking")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
                         .WithMany("tickets")
                         .HasForeignKey("codeFlight", "arriveDate", "arriveTime")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("Pbl3.DataAccess.Models.Flights.FlightSeat", "seat")
                         .WithOne()
                         .HasForeignKey("Pbl3.DataAccess.Models.Bookings.Ticket", "codeSeat", "codeFlight", "arriveDate", "arriveTime")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("booking");
@@ -431,12 +690,23 @@ namespace Pbl3.Migrations
                     b.Navigation("seat");
                 });
 
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.DiscountFlight", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
+                        .WithOne("discountFlight")
+                        .HasForeignKey("Pbl3.DataAccess.Models.Flights.DiscountFlight", "codeFlight", "arriveDate", "arriveTime")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("flight");
+                });
+
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.Flight", b =>
                 {
                     b.HasOne("Pbl3.DataAccess.Models.Others.FromTo", "fromTo")
                         .WithOne()
                         .HasForeignKey("Pbl3.DataAccess.Models.Flights.Flight", "codeFlight")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("fromTo");
@@ -444,10 +714,10 @@ namespace Pbl3.Migrations
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.FlightSeat", b =>
                 {
-                    b.HasOne("Pbl3.DataAccess.Models.Flights.TicketType", "type")
+                    b.HasOne("Pbl3.DataAccess.Models.Flights.Seat", "seat")
                         .WithOne()
-                        .HasForeignKey("Pbl3.DataAccess.Models.Flights.FlightSeat", "codeType")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasForeignKey("Pbl3.DataAccess.Models.Flights.FlightSeat", "codeSeat")
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("Pbl3.DataAccess.Models.Bookings.Ticket", "ticket")
@@ -457,12 +727,22 @@ namespace Pbl3.Migrations
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
                         .WithMany("flightSeats")
                         .HasForeignKey("codeFlight", "arriveDate", "arriveTime")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("flight");
 
+                    b.Navigation("seat");
+
                     b.Navigation("ticket");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.Seat", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Flights.TicketType", "type")
+                        .WithMany()
+                        .HasForeignKey("codeType")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("type");
                 });
@@ -491,18 +771,127 @@ namespace Pbl3.Migrations
                     b.HasOne("Pbl3.DataAccess.Models.Others.City", "fromCity")
                         .WithMany()
                         .HasForeignKey("from")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("Pbl3.DataAccess.Models.Others.City", "toCity")
                         .WithMany()
                         .HasForeignKey("to")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("fromCity");
 
                     b.Navigation("toCity");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Others.Request", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Users.User", "requester")
+                        .WithMany("requests")
+                        .HasForeignKey("requester_id")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Pbl3.DataAccess.Models.Users.Admin", "reviewer")
+                        .WithMany("solved")
+                        .HasForeignKey("reviewer_id")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("requester");
+
+                    b.Navigation("reviewer");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Promotions.Promotion", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
+                        .WithOne("promotion")
+                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.Promotion", "codeFlight", "arriveDate", "arriveTime")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("flight");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Bookings.CancelRequest", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Users.User", null)
+                        .WithMany("cancelRequests")
+                        .HasForeignKey("Userid");
+
+                    b.HasOne("Pbl3.DataAccess.Models.Bookings.Ticket", "ticket")
+                        .WithOne("request")
+                        .HasForeignKey("Pbl3.DataAccess.Models.Bookings.CancelRequest", "codeTicket")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pbl3.DataAccess.Models.Others.Request", null)
+                        .WithOne()
+                        .HasForeignKey("Pbl3.DataAccess.Models.Bookings.CancelRequest", "id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ticket");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.FlightRequest", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Others.Request", null)
+                        .WithOne()
+                        .HasForeignKey("Pbl3.DataAccess.Models.Flights.FlightRequest", "id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
+                        .WithMany("requests")
+                        .HasForeignKey("codeFlight", "arriveDate", "arriveTime")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("flight");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Promotions.PromotionCancelRequest", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Others.Request", null)
+                        .WithOne()
+                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.PromotionCancelRequest", "id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Pbl3.DataAccess.Models.Promotions.Promotion", "promotion")
+                        .WithOne("cancelRequest")
+                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.PromotionCancelRequest", "promotion_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("promotion");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Promotions.PromotionRequest", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Others.Request", null)
+                        .WithOne()
+                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.PromotionRequest", "id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
+                        .WithOne()
+                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.PromotionRequest", "codeFlight", "arriveDate", "arriveTime")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("flight");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Users.StaffRequest", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Others.Request", null)
+                        .WithOne()
+                        .HasForeignKey("Pbl3.DataAccess.Models.Users.StaffRequest", "id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Users.Admin", b =>
@@ -540,18 +929,44 @@ namespace Pbl3.Migrations
             modelBuilder.Entity("Pbl3.DataAccess.Models.Bookings.Ticket", b =>
                 {
                     b.Navigation("baggages");
+
+                    b.Navigation("request")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.Flight", b =>
                 {
+                    b.Navigation("discountFlight")
+                        .IsRequired();
+
                     b.Navigation("flightSeats");
 
+                    b.Navigation("promotion")
+                        .IsRequired();
+
+                    b.Navigation("requests");
+
                     b.Navigation("tickets");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Promotions.Promotion", b =>
+                {
+                    b.Navigation("cancelRequest")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Users.User", b =>
                 {
                     b.Navigation("bookings");
+
+                    b.Navigation("cancelRequests");
+
+                    b.Navigation("requests");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Users.Admin", b =>
+                {
+                    b.Navigation("solved");
                 });
 #pragma warning restore 612, 618
         }

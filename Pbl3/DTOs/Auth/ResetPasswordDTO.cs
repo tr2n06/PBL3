@@ -6,7 +6,7 @@
         // Người dùng sẽ nhập mã xác nhận
         // Hệ thống hiển thị tên tài khoản
         // Người dùng nhập mật khẩu mới
-        public int id {  get; set; }
+        public string email {  get; set; }
         public string password {  get; set; }
     }
 }

@@ -18,11 +18,9 @@ namespace Pbl3.DataAccess.Models.Flights
         [Required]
         public TimeOnly arriveTime { get; set; }
         [Required]
-        public int codeType { get; set; }
-        [Required]
         public Boolean isBooked { get; set; }
         public virtual Flight flight { get; set; }
         public virtual Ticket ticket { get; set; }
-        public virtual TicketType type { get; set; }
+        public virtual Seat seat { get; set; }
         }
 }

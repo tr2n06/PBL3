@@ -15,7 +15,10 @@ namespace Pbl3.DataAccess.Models.Others
         [Required]
         [StringLength(10)]
         public string to { get; set; }
+        [Required]
+        public float length { get; set; }
         public virtual City fromCity { get; set; }
         public virtual City toCity { get; set; }
+        
     }
 }

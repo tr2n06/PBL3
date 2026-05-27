@@ -13,7 +13,7 @@ namespace Pbl3.DataAccess.Models.Flights
         [StringLength(100)]
         public string name { get; set; }
         [Required]
-        public int priceBooked { get; set; }
+        public decimal priceBooked { get; set; }
         [Required]
         public Boolean canBeUpgrade { get; set; }
         [Required]

@@ -11,5 +11,7 @@
         public DateOnly dateOfBirth { get; set; }
         public DateOnly joinedDate { get; set; }
         public string password { get; set; }
+        public string status { get; set; }
+        public DateTime createdAt { get;set; }
     }
 }

@@ -2,5 +2,9 @@
 {
     public class FlightSearchDTO
     {
+        public string codeFlight { get; set; }
+        public DateOnly? arriveDate { get; set; }
+        public TimeOnly? arriveTime { get; set; }
     }
 }
+ 
