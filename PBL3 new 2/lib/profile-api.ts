@@ -4,7 +4,18 @@ export type CurrentUser = {
   email: string;
   role: string;
   phone?: string;
+  gender?: "Male" | "Female" | string;
+  dateOfBirth?: string;
+  address?: string;
   availablePoints?: number;
+};
+
+export type UpdateCurrentUserPayload = {
+  fullName?: string;
+  phone?: string;
+  gender?: "Male" | "Female" | string;
+  dateOfBirth?: string;
+  address?: string;
 };
 
 export async function getCurrentUser() {
@@ -26,10 +37,8 @@ export async function getCurrentUser() {
 
   return res.json() as Promise<CurrentUser>;
 }
-export async function updateCurrentUser(payload: {
-  fullName?: string;
-  phone?: string;
-}) {
+
+export async function updateCurrentUser(payload: UpdateCurrentUserPayload) {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/me`,
     {
@@ -49,6 +58,7 @@ export async function updateCurrentUser(payload: {
 
   return res.json();
 }
+
 export async function changePassword(payload: {
   currentPassword: string;
   newPassword: string;
