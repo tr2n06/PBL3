@@ -1,4 +1,4 @@
-﻿using Pbl3.Repositories.Interface;
+using Pbl3.Repositories.Interface;
 using Pbl3.DataAccess.Data;
 using Pbl3.DataAccess.Models.Others;
 using Pbl3.DTOs.Baggage;
@@ -21,9 +21,9 @@ namespace Pbl3.Repositories.Implementation
                 codeTransaction = dto.codeTransaction ?? "",
                 codeTicket = dto.codeTicket,
                 type = dto.type ?? "cabin",
-                status = "pending",
+                status = dto.status ?? "pending",
                 weight = dto.weight ?? 0
-            });
+            }); 
             await context.SaveChangesAsync();
         }
         public async Task updateBaggage(BaggageRequestDTO dto)
@@ -58,7 +58,8 @@ namespace Pbl3.Repositories.Implementation
                                  {
                                      codeTransaction = b.codeTransaction,
                                      codeTicket = b.codeTicket,
-                                     weight = b.weight
+                                     cabinWeight = b.type == "cabin" ? b.weight : 0,
+                                     checkedWeight = b.type == "checked" ? b.weight : 0
                                  }).FirstOrDefaultAsync();
             return baggage;
 
@@ -66,13 +67,14 @@ namespace Pbl3.Repositories.Implementation
         public async Task<List<BaggageResponseDTO>> getBaggageByTicketCode(string codeTicket)
         {
             var baggages = await (from b in context.Baggage
-                                  where b.codeTicket == codeTicket && b.status != "pending" && b.type == "cabin"
-                                  select new BaggageResponseDTO
-                                  {
-                                      codeTransaction = b.codeTransaction,
-                                      codeTicket = b.codeTicket,
-                                      weight = b.weight
-                                  }).ToListAsync();
+                                   where b.codeTicket == codeTicket
+                                   select new BaggageResponseDTO
+                                   {
+                                       codeTransaction = b.codeTransaction,
+                                       codeTicket = b.codeTicket,
+                                       cabinWeight = b.type == "cabin" ? b.weight : 0,
+                                       checkedWeight = b.type == "checked" ? b.weight : 0
+                                   }).ToListAsync();
             return baggages;
 
         }
@@ -84,11 +86,17 @@ namespace Pbl3.Repositories.Implementation
             if (baggage == null) return true;
             return false;
         }
-        public async Task<int> getNumberOfBaggage(string codeTicket)
+        public async Task<int> getNumberOfCheckedBaggage(string codeTicket)
         {
             return await (from b in context.Baggage
-                          where b.codeTicket == codeTicket && b.codeTransaction != null
-                          select b).CountAsync();;
+                           where b.codeTicket == codeTicket && b.codeTransaction != null && b.type == "checked"
+                           select (int?)b.weight).SumAsync() ?? 0;
+        }
+        public async Task<int> getNumberOfCabinBaggage(string codeTicket)
+        {
+            return await (from b in context.Baggage
+                           where b.codeTicket == codeTicket && b.codeTransaction != null && b.type == "cabin"
+                           select (int?)b.weight).SumAsync() ?? 0;
         }
     }
 }

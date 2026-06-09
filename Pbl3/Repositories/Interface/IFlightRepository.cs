@@ -17,7 +17,6 @@ namespace Pbl3.Repositories.Interface
          public Task deleteDiscountFlight (FlightSearchDTO dto);
         public Task<FromToDTO> getFlightDetail(FlightSearchDTO dto);
         public Task<FromToDTO> getInformationDetail(CreateFlightDTO dto);
-        public Task<String> getFullName(string abriviateName);
         public Task<TicketTypeDTO> getTicketType(int codeType);
         public Task insertRequest(LowBookingDTORequest dto); 
         public Task<List<LowBookingDTOResponse>> getRequestById(int account_id);
@@ -33,6 +32,7 @@ namespace Pbl3.Repositories.Interface
         public Task<List<string>> getAllSeats();
         public Task<Boolean> haveTicket(FlightSearchDTO dto);
         public Task<FlightApiDTO> getFlightFromCodeTicket(string codeTicket);
-
+        public Task<List<PassengerFlightDTO>> getPassengerFlight(FlightSearchDTO dto);
+        public Task<string> getFlightNumber(string departureCode, string arrivalCode);
     }
 }

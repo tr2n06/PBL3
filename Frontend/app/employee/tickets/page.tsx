@@ -32,12 +32,14 @@ import {
   Filter,
   Eye,
   RefreshCcw,
+  Ticket,
 } from 'lucide-react'
 
 import {
   addTicketBaggage,
   requestTicketCancellation,
   requestTicketUpgrade,
+  checkTicketCancellationRequested,
 } from '@/lib/manage-tickets-api'
 import type { Flight, TicketClass, TicketStatus } from '@/lib/types'
 
@@ -247,8 +249,11 @@ export default function EmployeeTicketsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all')
   const [tickets, setTickets] = useState<EmployeeTicket[]>([])
+  const [cancellationRequestedTicketIds, setCancellationRequestedTicketIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [searchBookingRef, setSearchBookingRef] = useState('')
+  const [searchedRef, setSearchedRef] = useState('')
 
   const [selectedTicket, setSelectedTicket] = useState<EmployeeTicket | null>(null)
   const [showDetailsDialog, setShowDetailsDialog] = useState(false)
@@ -268,6 +273,23 @@ export default function EmployeeTicketsPage() {
 
       const data = await getAllTickets()
       setTickets(data)
+
+      try {
+        const statuses = await Promise.all(
+          data.map(async (t) => {
+            try {
+              const res = await checkTicketCancellationRequested(t.id)
+              return { id: t.id, requested: res }
+            } catch {
+              return { id: t.id, requested: false }
+            }
+          })
+        )
+        const requestedIds = new Set(statuses.filter((s) => s.requested).map((s) => s.id))
+        setCancellationRequestedTicketIds(requestedIds)
+      } catch (err) {
+        console.error('Failed to load ticket cancellation statuses:', err)
+      }
     } catch (err) {
       console.error('Load tickets failed:', err)
       setTickets([])
@@ -364,7 +386,7 @@ export default function EmployeeTicketsPage() {
         await addTicketBaggage({
           ticketId: selectedTicket.id,
           extraCheckedKg: kg,
-          amount: kg * 30_000,
+          amount: kg * 40_000,
           paymentMethod: 'card',
         })
       }
@@ -390,6 +412,12 @@ export default function EmployeeTicketsPage() {
     }
   }
 
+  const bookingFilteredTickets = useMemo(() => {
+    if (!searchedRef) return []
+    const ref = searchedRef.trim().toLowerCase()
+    return tickets.filter(t => t.bookingRef.toLowerCase() === ref)
+  }, [tickets, searchedRef])
+
   return (
     <div className="space-y-6">
       <div>
@@ -406,7 +434,7 @@ export default function EmployeeTicketsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
               <Label>Search</Label>
               <div className="relative">
@@ -439,6 +467,31 @@ export default function EmployeeTicketsPage() {
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label>Mã đặt chỗ (Booking Ref)</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="SL-BK-XXXXXX"
+                  value={searchBookingRef}
+                  onChange={(e) => setSearchBookingRef(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && setSearchedRef(searchBookingRef.trim())}
+                  className="font-mono uppercase h-10 text-xs"
+                />
+                {(searchedRef || searchBookingRef) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearchBookingRef('')
+                      setSearchedRef('')
+                    }}
+                    className="h-10 text-xs"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div className="flex items-end">
               <Button
                 type="button"
@@ -455,32 +508,93 @@ export default function EmployeeTicketsPage() {
         </CardContent>
       </Card>
 
-      {/* Tickets Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Tickets ({filteredTickets.length})</CardTitle>
-          <CardDescription>Manage upgrades, baggage, and cancellations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading && (
-            <div className="py-10 text-center">
-              <Plane className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-              <p className="text-muted-foreground">Loading tickets...</p>
-            </div>
-          )}
-
-          {!loading && error && (
-            <div className="py-10 text-center">
-              <Plane className="mx-auto mb-3 h-8 w-8 text-destructive" />
-              <p className="mb-4 font-medium text-destructive">{error}</p>
-              <Button onClick={() => void loadTickets()} className="gap-2">
-                <RefreshCcw className="h-4 w-4" />
-                Try Again
+      {/* Tickets Table or Cards */}
+      {searchedRef ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl">
+                  Kết quả tìm kiếm mã: <span className="font-mono text-[#0b5c66] font-bold uppercase">{searchedRef}</span>
+                </CardTitle>
+                <CardDescription>
+                  Tìm thấy {bookingFilteredTickets.length} vé trong mã đặt chỗ này
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchBookingRef('')
+                  setSearchedRef('')
+                }}
+              >
+                Clear Tìm kiếm
               </Button>
             </div>
-          )}
+          </CardHeader>
+          <CardContent className="space-y-4 pt-4">
+            {bookingFilteredTickets.length === 0 ? (
+              <div className="py-10 text-center border border-dashed rounded-xl bg-gray-50/50">
+                <Plane className="mx-auto mb-2 h-8 w-8 text-muted-foreground animate-pulse" />
+                <p className="text-muted-foreground text-sm font-medium">Không tìm thấy vé nào khớp với mã đặt chỗ này</p>
+              </div>
+            ) : (
+              (() => {
+                const { roundTickets, tickets: oneWay } = groupTicketsByPassenger(bookingFilteredTickets)
+                return (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {roundTickets.map(group => (
+                      <EmployeeRoundTripCard
+                        key={`${group.ticket.id}-${group.returnTicket.id}`}
+                        ticket={group.ticket}
+                        returnTicket={group.returnTicket}
+                        cancellationRequestedTicketIds={cancellationRequestedTicketIds}
+                        handleViewDetails={handleViewDetails}
+                        handleAction={handleAction}
+                      />
+                    ))}
+                    {oneWay.map(ticket => (
+                      <EmployeeTicketCard
+                        key={ticket.id}
+                        ticket={ticket}
+                        cancellationRequestedTicketIds={cancellationRequestedTicketIds}
+                        handleViewDetails={handleViewDetails}
+                        handleAction={handleAction}
+                      />
+                    ))}
+                  </div>
+                )
+              })()
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>All Tickets ({filteredTickets.length})</CardTitle>
+            <CardDescription>Manage upgrades, baggage, and cancellations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading && (
+              <div className="py-10 text-center">
+                <Plane className="mx-auto mb-3 h-8 w-8 text-muted-foreground animate-pulse" />
+                <p className="text-muted-foreground">Loading tickets...</p>
+              </div>
+            )}
 
-          {!loading && !error && (
+            {!loading && error && (
+              <div className="py-10 text-center">
+                <Plane className="mx-auto mb-3 h-8 w-8 text-destructive" />
+                <p className="mb-4 font-medium text-destructive">{error}</p>
+                <Button onClick={() => void loadTickets()} className="gap-2">
+                  <RefreshCcw className="h-4 w-4" />
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            {!loading && !error && (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -534,9 +648,16 @@ export default function EmployeeTicketsPage() {
                           </TableCell>
 
                           <TableCell>
-                            <Badge className={statusColors[ticket.status]}>
-                              {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
-                            </Badge>
+                            <div className="flex flex-col gap-1 items-start">
+                              <Badge className={statusColors[ticket.status]}>
+                                {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                              </Badge>
+                              {cancellationRequestedTicketIds.has(ticket.id) && (
+                                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px] whitespace-nowrap">
+                                  Pending Cancel Request
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
 
                           <TableCell className="text-right">
@@ -550,7 +671,7 @@ export default function EmployeeTicketsPage() {
                                 <Eye className="h-4 w-4" />
                               </Button>
 
-                              {ticket.status === 'confirmed' && (
+                              {ticket.status === 'confirmed' && !cancellationRequestedTicketIds.has(ticket.id) && (
                                 <>
                                   {upgradeOptions.length > 0 && (
                                     <Button
@@ -594,6 +715,7 @@ export default function EmployeeTicketsPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Details Dialog */}
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
@@ -741,7 +863,7 @@ export default function EmployeeTicketsPage() {
                         <SelectContent>
                           {[0, 5, 10, 15, 20, 25, 30].map((kg) => (
                             <SelectItem key={kg} value={kg.toString()}>
-                              +{kg} kg ({formatVND(kg * 30_000)} VND)
+                              +{kg} kg ({formatVND(kg * 40_000)} VND)
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -794,5 +916,366 @@ export default function EmployeeTicketsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function groupTicketsByPassenger(tickets: EmployeeTicket[]) {
+  const groups: Record<string, EmployeeTicket[]> = {}
+  tickets.forEach(t => {
+    const key = t.passengerName.trim().toUpperCase()
+    if (!groups[key]) groups[key] = []
+    groups[key].push(t)
+  })
+
+  const roundTickets: { ticket: EmployeeTicket; returnTicket: EmployeeTicket }[] = []
+  const oneWayTickets: EmployeeTicket[] = []
+
+  Object.values(groups).forEach(list => {
+    list.sort((a, b) => {
+      const dateA = new Date(`${a.flight.departure.date}T${a.flight.departure.time}`)
+      const dateB = new Date(`${b.flight.departure.date}T${b.flight.departure.time}`)
+      return dateA.getTime() - dateB.getTime()
+    })
+
+    if (list.length >= 2) {
+      roundTickets.push({
+        ticket: list[0],
+        returnTicket: list[1]
+      })
+      for (let i = 2; i < list.length; i++) {
+        oneWayTickets.push(list[i])
+      }
+    } else if (list.length === 1) {
+      oneWayTickets.push(list[0])
+    }
+  })
+
+  return { roundTickets, tickets: oneWayTickets }
+}
+
+function EmployeeTicketCard({
+  ticket,
+  cancellationRequestedTicketIds,
+  handleViewDetails,
+  handleAction,
+}: {
+  ticket: EmployeeTicket
+  cancellationRequestedTicketIds: Set<string>
+  handleViewDetails: (t: EmployeeTicket) => void
+  handleAction: (t: EmployeeTicket, type: 'upgrade' | 'baggage' | 'cancel') => void
+}) {
+  const statusColors: Record<TicketStatus, string> = {
+    confirmed: 'bg-accent text-accent-foreground border-accent-foreground/10',
+    pending: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30',
+    cancelled: 'bg-destructive/20 text-destructive border-destructive/30',
+    completed: 'bg-muted text-muted-foreground border-muted/30',
+  }
+
+  const classColors: Record<TicketClass, string> = {
+    economy: 'bg-[#0b5c66] text-white',
+    business: 'bg-[#5a8fa3] text-white',
+    firstClass: 'bg-[#dfad36] text-gray-900',
+  }
+
+  const classLabels: Record<TicketClass, string> = {
+    economy: 'Economy',
+    business: 'Business',
+    firstClass: 'First Class',
+  }
+
+  const isPendingCancel = cancellationRequestedTicketIds.has(ticket.id)
+  const classOrder: TicketClass[] = ['economy', 'business', 'firstClass']
+  const getUpgradeOptions = (currentClass: TicketClass) => {
+    const currentIndex = classOrder.indexOf(currentClass)
+    return classOrder.slice(currentIndex + 1)
+  }
+  const upgradeOptions = getUpgradeOptions(ticket.ticketClass)
+
+  return (
+    <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-200">
+      <div className={`h-1.5 w-full ${classColors[ticket.ticketClass]?.split(' ')[0]}`} />
+      <CardHeader className="pb-3 border-b bg-gray-50/60 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-9 w-9 items-center justify-center rounded-full ${classColors[ticket.ticketClass]}`}>
+              <Plane className="h-4 w-4" />
+            </div>
+            <div>
+              <CardTitle className="text-base">{ticket.flight.flightNumber}</CardTitle>
+              <CardDescription className="text-xs">{ticket.flight.airline}</CardDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge className={`${statusColors[ticket.status]} border text-xs font-semibold`}>
+              {ticket.status.toUpperCase()}
+            </Badge>
+            {isPendingCancel && (
+              <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">
+                Pending Cancel Request
+              </Badge>
+            )}
+            <Badge className={`${classColors[ticket.ticketClass]} border-0 text-xs font-semibold`}>
+              {classLabels[ticket.ticketClass]}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 space-y-4">
+        <div className="grid grid-cols-3 gap-2 text-center py-2">
+          <div>
+            <div className="text-2xl font-light text-[#0b5c66]">{ticket.flight.departure.code}</div>
+            <div className="text-sm font-semibold mt-0.5">{ticket.flight.departure.time}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{ticket.flight.departure.city}</div>
+          </div>
+          <div className="flex flex-col items-center justify-center">
+            <span className="text-xs text-gray-500 font-medium">{ticket.flight.duration}</span>
+            <div className="mt-1 flex items-center gap-1">
+              <div className="h-px w-6 bg-gray-300" />
+              <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+              <div className="h-px w-6 bg-gray-300" />
+            </div>
+          </div>
+          <div>
+            <div className="text-2xl font-light text-[#0b5c66]">{ticket.flight.arrival.code}</div>
+            <div className="text-sm font-semibold mt-0.5">{ticket.flight.arrival.time}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{ticket.flight.arrival.city}</div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 rounded-lg bg-[#f0f8fb] border border-[#dce8f4] p-3 grid-cols-2 lg:grid-cols-4 text-xs">
+          <div>
+            <div className="text-gray-400 mb-0.5">Booking Ref</div>
+            <div className="font-mono font-bold text-[#0b5c66]">{ticket.bookingRef}</div>
+          </div>
+          <div>
+            <div className="text-gray-400 mb-0.5">Passenger</div>
+            <div className="font-semibold truncate">{ticket.passengerName}</div>
+          </div>
+          <div>
+            <div className="text-gray-400 mb-0.5">Seat</div>
+            <div className="font-bold">{ticket.seatNumber || '—'}</div>
+          </div>
+          <div>
+            <div className="text-gray-400 mb-0.5">Booked On</div>
+            <div className="font-medium">{ticket.bookedAt || '—'}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
+          <div>
+            <span>Cabin: {ticket.baggage.cabin} bag(s)</span>
+            <span className="mx-2">·</span>
+            <span>Checked: {ticket.baggage.checked} bag(s)</span>
+          </div>
+          <div className="font-bold text-gray-800 text-sm">{formatVND(ticket.price)} VND</div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2 border-t">
+          <Button variant="outline" size="sm" onClick={() => handleViewDetails(ticket)} className="h-8 gap-1.5 text-xs">
+            <Eye className="h-3.5 w-3.5" /> Chi tiết
+          </Button>
+          {ticket.status === 'confirmed' && !isPendingCancel && (
+            <>
+              {upgradeOptions.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => handleAction(ticket, 'upgrade')} className="h-8 gap-1.5 text-xs text-primary border-primary/20 hover:bg-primary/5">
+                  <ArrowUpCircle className="h-3.5 w-3.5" /> Nâng hạng
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => handleAction(ticket, 'baggage')} className="h-8 gap-1.5 text-xs text-primary border-primary/20 hover:bg-primary/5">
+                <Luggage className="h-3.5 w-3.5" /> Thêm hành lý
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleAction(ticket, 'cancel')} className="h-8 gap-1.5 text-xs text-destructive border-destructive/20 hover:bg-destructive/5">
+                <XCircle className="h-3.5 w-3.5" /> Hủy vé
+              </Button>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function EmployeeRoundTripCard({
+  ticket,
+  returnTicket,
+  cancellationRequestedTicketIds,
+  handleViewDetails,
+  handleAction,
+}: {
+  ticket: EmployeeTicket
+  returnTicket: EmployeeTicket
+  cancellationRequestedTicketIds: Set<string>
+  handleViewDetails: (t: EmployeeTicket) => void
+  handleAction: (t: EmployeeTicket, type: 'upgrade' | 'baggage' | 'cancel') => void
+}) {
+  const classColors: Record<TicketClass, string> = {
+    economy: 'bg-[#0b5c66] text-white',
+    business: 'bg-[#5a8fa3] text-white',
+    firstClass: 'bg-[#dfad36] text-gray-900',
+  }
+
+  const isPendingCancelOut = cancellationRequestedTicketIds.has(ticket.id)
+  const isPendingCancelRet = cancellationRequestedTicketIds.has(returnTicket.id)
+
+  const classOrder: TicketClass[] = ['economy', 'business', 'firstClass']
+  const getUpgradeOptions = (currentClass: TicketClass) => {
+    const currentIndex = classOrder.indexOf(currentClass)
+    return classOrder.slice(currentIndex + 1)
+  }
+
+  return (
+    <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-200 col-span-1 md:col-span-2">
+      <div className={`h-1.5 w-full ${classColors[ticket.ticketClass]?.split(' ')[0]}`} />
+      <CardContent className="p-4 space-y-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b">
+            <div className="flex items-center gap-2">
+              <Plane className="h-4 w-4 text-[#0b5c66] rotate-45" />
+              <span className="font-bold text-sm text-gray-800">Chuyến đi (Outbound) - {ticket.flight.flightNumber}</span>
+            </div>
+            <div className="flex gap-2">
+              <Badge className="bg-accent text-accent-foreground text-xs">{ticket.status.toUpperCase()}</Badge>
+              {isPendingCancelOut && (
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">
+                  Pending Cancel
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center py-1">
+            <div>
+              <div className="text-xl font-light text-[#0b5c66]">{ticket.flight.departure.code}</div>
+              <div className="text-xs font-semibold mt-0.5">{ticket.flight.departure.time}</div>
+              <div className="text-[10px] text-muted-foreground">{ticket.flight.departure.city}</div>
+            </div>
+            <div className="flex flex-col items-center justify-center">
+              <span className="text-[10px] text-gray-500">{ticket.flight.duration}</span>
+              <div className="h-px w-8 bg-gray-300 my-1" />
+            </div>
+            <div>
+              <div className="text-xl font-light text-[#0b5c66]">{ticket.flight.arrival.code}</div>
+              <div className="text-xs font-semibold mt-0.5">{ticket.flight.arrival.time}</div>
+              <div className="text-[10px] text-muted-foreground">{ticket.flight.arrival.city}</div>
+            </div>
+          </div>
+          <div className="grid gap-2 rounded-lg bg-[#f0f8fb] border border-[#dce8f4] p-3 grid-cols-2 lg:grid-cols-4 text-xs">
+            <div>
+              <div className="text-gray-400">Mã vé đi</div>
+              <div className="font-mono font-bold text-[#0b5c66]">{ticket.id}</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Passenger</div>
+              <div className="font-semibold">{ticket.passengerName}</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Ghế đi</div>
+              <div className="font-bold">{ticket.seatNumber || '—'}</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Hành lý</div>
+              <div className="text-[10px]">C: {ticket.baggage.cabin}, CK: {ticket.baggage.checked}</div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="ghost" size="sm" onClick={() => handleViewDetails(ticket)} className="h-7 text-xs px-2">
+              Chi tiết đi
+            </Button>
+            {ticket.status === 'confirmed' && !isPendingCancelOut && (
+              <>
+                {getUpgradeOptions(ticket.ticketClass).length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => handleAction(ticket, 'upgrade')} className="h-7 text-xs px-2 text-primary border-primary/10">
+                    Nâng hạng
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => handleAction(ticket, 'baggage')} className="h-7 text-xs px-2 text-primary border-primary/10">
+                  Thêm hành lý
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleAction(ticket, 'cancel')} className="h-7 text-xs px-2 text-destructive border-destructive/10">
+                  Hủy vé
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-dashed" />
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b">
+            <div className="flex items-center gap-2">
+              <Plane className="h-4 w-4 text-[#0b5c66] rotate-[225deg]" />
+              <span className="font-bold text-sm text-gray-800">Chuyến về (Return) - {returnTicket.flight.flightNumber}</span>
+            </div>
+            <div className="flex gap-2">
+              <Badge className="bg-accent text-accent-foreground text-xs">{returnTicket.status.toUpperCase()}</Badge>
+              {isPendingCancelRet && (
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">
+                  Pending Cancel
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center py-1">
+            <div>
+              <div className="text-xl font-light text-[#0b5c66]">{returnTicket.flight.departure.code}</div>
+              <div className="text-xs font-semibold mt-0.5">{returnTicket.flight.departure.time}</div>
+              <div className="text-[10px] text-muted-foreground">{returnTicket.flight.departure.city}</div>
+            </div>
+            <div className="flex flex-col items-center justify-center">
+              <span className="text-[10px] text-gray-500">{returnTicket.flight.duration}</span>
+              <div className="h-px w-8 bg-gray-300 my-1" />
+            </div>
+            <div>
+              <div className="text-xl font-light text-[#0b5c66]">{returnTicket.flight.arrival.code}</div>
+              <div className="text-xs font-semibold mt-0.5">{returnTicket.flight.arrival.time}</div>
+              <div className="text-[10px] text-muted-foreground">{returnTicket.flight.arrival.city}</div>
+            </div>
+          </div>
+          <div className="grid gap-2 rounded-lg bg-[#f0f8fb] border border-[#dce8f4] p-3 grid-cols-2 lg:grid-cols-4 text-xs">
+            <div>
+              <div className="text-gray-400">Mã vé về</div>
+              <div className="font-mono font-bold text-[#0b5c66]">{returnTicket.id}</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Passenger</div>
+              <div className="font-semibold">{returnTicket.passengerName}</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Ghế về</div>
+              <div className="font-bold">{returnTicket.seatNumber || '—'}</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Hành lý</div>
+              <div className="text-[10px]">C: {returnTicket.baggage.cabin}, CK: {returnTicket.baggage.checked}</div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="ghost" size="sm" onClick={() => handleViewDetails(returnTicket)} className="h-7 text-xs px-2">
+              Chi tiết về
+            </Button>
+            {returnTicket.status === 'confirmed' && !isPendingCancelRet && (
+              <>
+                {getUpgradeOptions(returnTicket.ticketClass).length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => handleAction(returnTicket, 'upgrade')} className="h-7 text-xs px-2 text-primary border-primary/10">
+                    Nâng hạng
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => handleAction(returnTicket, 'baggage')} className="h-7 text-xs px-2 text-primary border-primary/10">
+                  Thêm hành lý
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleAction(returnTicket, 'cancel')} className="h-7 text-xs px-2 text-destructive border-destructive/10">
+                  Hủy vé
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+          <span className="font-semibold text-gray-800">Tổng tiền khứ hồi:</span>
+          <span className="font-bold text-primary text-sm">{formatVND(ticket.price + returnTicket.price)} VND</span>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

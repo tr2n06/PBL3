@@ -78,7 +78,7 @@ namespace Pbl3.Repositories.Implementations
             foreach (var t in allTickets)
             {
                 DateOnly bookingTime = DateOnly.FromDateTime(t.booking.bookedTime);
-                bool isCancelled = t.status == "Cancelled";
+                bool isCancelled = t.status == "Cancelled" || t.status == "cancelled" || t.status == "cancel";
 
                 // CURRENT PERIOD
                 if (bookingTime >= currentStart)
@@ -254,7 +254,7 @@ namespace Pbl3.Repositories.Implementations
                 cancellationMap[monthNumber].Rate++;
 
                 // booking bị hủy
-                if (t.status == "Cancelled")
+                if (t.status == "Cancelled" || t.status == "cancelled" || t.status == "cancel")
                 {
                     cancellationMap[monthNumber]
                         .Cancellations++;
@@ -280,12 +280,12 @@ namespace Pbl3.Repositories.Implementations
             var cancellationReasonMap = new Dictionary<string, int>();
             foreach (var t in allTickets)
             {
-                if (t.status != "Cancelled")
+                if (t.status != "Cancelled" && t.status != "cancelled" && t.status != "cancel")
                 {
                     continue;
                 }
 
-                string reason = t.request.reason ?? "Unknown";
+                string reason = t.request?.reason ?? "Unknown";
 
                 if (!cancellationReasonMap.ContainsKey(reason))
                 {
@@ -334,7 +334,7 @@ namespace Pbl3.Repositories.Implementations
 
                 customerMap[customerId].TotalBookings++;
 
-                if (t.status == "Cancelled")
+                if (t.status == "Cancelled" || t.status == "cancelled" || t.status == "cancel")
                 {
                     customerMap[customerId]
                         .Cancellations++;

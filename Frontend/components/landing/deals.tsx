@@ -36,6 +36,20 @@ export function Deals() {
     loadPromotions();
   }, []);
 
+  if (loading) {
+    return (
+      <section id="deals" className="bg-secondary/30 py-16 md:py-24">
+        <div className="container mx-auto px-4 text-center text-muted-foreground">
+          Loading deals...
+        </div>
+      </section>
+    );
+  }
+
+  if (promotionFlights.length === 0) {
+    return null;
+  }
+
   return (
     <section id="deals" className="bg-secondary/30 py-16 md:py-24">
       <div className="container mx-auto px-4">
@@ -52,16 +66,7 @@ export function Deals() {
           </p>
         </div>
 
-        {loading ? (
-          <div className="text-center text-muted-foreground">
-            Loading deals...
-          </div>
-        ) : promotionFlights.length === 0 ? (
-          <div className="text-center text-muted-foreground">
-            No promotion flights available right now.
-          </div>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2">
             {promotionFlights.map((flight) => {
               const discountedPrice = Math.round(
                 flight.economyPrice * (1 - (flight.discount || 0) / 100),
@@ -172,7 +177,6 @@ export function Deals() {
               );
             })}
           </div>
-        )}
 
         <div className="mt-8 text-center">
           <Button variant="outline" size="lg" asChild>

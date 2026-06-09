@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { getCustomerByPhone } from "@/lib/phone-api";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Plane,
   ArrowRightLeft,
@@ -49,18 +50,29 @@ import {
 } from "@/lib/booking-api";
 import type { Flight, TicketClass } from "@/lib/types";
 
-// ─── Airports ────────────────────────────────────────────────────────────────
 const AIRPORTS = [
-  { code: "JFK", city: "New York" },
-  { code: "LAX", city: "Los Angeles" },
-  { code: "LHR", city: "London" },
-  { code: "CDG", city: "Paris" },
-  { code: "NRT", city: "Tokyo" },
-  { code: "DXB", city: "Dubai" },
-  { code: "SIN", city: "Singapore" },
-  { code: "SYD", city: "Sydney" },
-  { code: "HAN", city: "Hanoi" },
+  { code: "HAN", city: "Ha Noi" },
+  { code: "HPH", city: "Hai Phong" },
+  { code: "VDO", city: "Quang Ninh" },
+  { code: "DIN", city: "Dien Bien" },
+  { code: "THD", city: "Thanh Hoa" },
+  { code: "VDH", city: "Quang Binh" },
+  { code: "VII", city: "Nghe An" },
+  { code: "HUI", city: "Thua Thien Hue" },
+  { code: "DAD", city: "Da Nang" },
+  { code: "VCL", city: "Quang Nam" },
+  { code: "DLI", city: "Lam Dong" },
+  { code: "UIH", city: "Binh Dinh" },
+  { code: "TBB", city: "Phu Yen" },
+  { code: "CXR", city: "Khanh Hoa" },
+  { code: "PXU", city: "Gia Lai" },
+  { code: "BMV", city: "Dak Lak" },
   { code: "SGN", city: "Ho Chi Minh City" },
+  { code: "VCA", city: "Can Tho" },
+  { code: "VKG", city: "Kien Giang" },
+  { code: "CAH", city: "Ca Mau" },
+  { code: "VCS", city: "Ba Ria - Vung Tau" },
+  { code: "PQC", city: "Phu Quoc" },
 ];
 
 // ─── Country Dialing Codes ───────────────────────────────────────────────────
@@ -350,7 +362,7 @@ interface PassengerInfo {
 function emptyPassenger(passengerType: PassengerType): PassengerInfo {
   return {
     passengerType,
-    title: "Mr",
+    title: "",
     firstName: "",
     middleName: "",
     lastName: "",
@@ -674,9 +686,40 @@ export default function CustomerBookingPage() {
   const [to, setTo] = useState("");
   const [departDate, setDepartDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
-  const [adultCount, setAdultCount] = useState("1");
-  const [childCount, setChildCount] = useState("0");
-  const [infantCount, setInfantCount] = useState("0");
+  const [adultCount, setAdultCount] = useState(1);
+  const [childCount, setChildCount] = useState(0);
+  const [infantCount, setInfantCount] = useState(0);
+
+  const incrementPassenger = (type: "adult" | "child" | "infant") => {
+    const total = adultCount + childCount + infantCount;
+    if (total >= 10) return;
+
+    if (type === "adult") {
+      setAdultCount((prev) => prev + 1);
+    } else if (type === "child") {
+      setChildCount((prev) => prev + 1);
+    } else if (type === "infant") {
+      if (infantCount < adultCount) {
+        setInfantCount((prev) => prev + 1);
+      }
+    }
+  };
+
+  const decrementPassenger = (type: "adult" | "child" | "infant") => {
+    if (type === "adult") {
+      if (adultCount > 1 && adultCount > infantCount) {
+        setAdultCount((prev) => prev - 1);
+      }
+    } else if (type === "child") {
+      if (childCount > 0) {
+        setChildCount((prev) => prev - 1);
+      }
+    } else if (type === "infant") {
+      if (infantCount > 0) {
+        setInfantCount((prev) => prev - 1);
+      }
+    }
+  };
   const [searched, setSearched] = useState(false);
   const [flights, setFlights] = useState<Flight[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -813,9 +856,9 @@ export default function CustomerBookingPage() {
 
   const filteredFlights = flights;
 
-  const adultPassengers = parseInt(adultCount, 10) || 0;
-  const childPassengers = parseInt(childCount, 10) || 0;
-  const infantPassengers = parseInt(infantCount, 10) || 0;
+  const adultPassengers = adultCount;
+  const childPassengers = childCount;
+  const infantPassengers = infantCount;
   const passCount = adultPassengers + childPassengers + infantPassengers;
   const seatPassengerCount = adultPassengers + childPassengers;
   const basePrices =
@@ -1027,7 +1070,7 @@ export default function CustomerBookingPage() {
       0,
     );
 
-    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 30000, 0);
+    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 40000, 0);
     const totalWithoutDiscount =
       basePrices.reduce((a, b) => a + b, 0) + surcharge + baggageTotal;
 
@@ -1347,29 +1390,7 @@ export default function CustomerBookingPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-5 bg-white space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                      <div className="space-y-1">
-                        <Label>
-                          Title <span className="text-red-500">*</span>
-                        </Label>
-                        <Select
-                          value={passForms[idx]?.title ?? "Mr"}
-                          onValueChange={(v) =>
-                            updatePassenger(idx, "title", v)
-                          }
-                        >
-                          <SelectTrigger className="h-10">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {["Mr", "Mrs", "Ms", "Dr", "Prof"].map((t) => (
-                              <SelectItem key={t} value={t}>
-                                {t}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="space-y-1">
                         <Label>
                           Gender <span className="text-red-500">*</span>
@@ -1702,7 +1723,7 @@ export default function CustomerBookingPage() {
         s + (usedSeatSelection && chosenSeats[i] ? SEAT_SURCHARGE[t] : 0),
       0,
     );
-    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 30000, 0);
+    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 40000, 0);
     const totalWithoutDiscount =
       basePrices.reduce((a, b) => a + b, 0) + surcharge + baggageTotal;
     const maxPointsUsable = Math.min(pointsBalance, totalWithoutDiscount);
@@ -1776,6 +1797,7 @@ export default function CustomerBookingPage() {
                   <p className="text-[10px] font-bold text-[#1a3557] uppercase tracking-widest">
                     Extra Checked Baggage
                   </p>
+                  <span className="text-[9px] text-gray-500 font-normal normal-case -mt-1 block">(additional checked baggage kilograms to purchase)</span>
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
@@ -1813,7 +1835,7 @@ export default function CustomerBookingPage() {
                   </div>
                   {extraBaggageKg[i] > 0 && (
                     <p className="text-[11px] font-bold text-[#1e4069]">
-                      +{formatVND(extraBaggageKg[i] * 30000)} VND
+                      +{formatVND(extraBaggageKg[i] * 40000)} VND
                     </p>
                   )}
                 </div>
@@ -1982,172 +2004,239 @@ export default function CustomerBookingPage() {
                   onValueChange={setTripType}
                   className="w-full"
                 >
-                  <TabsList className="mb-6 grid h-12 w-full max-w-[360px] grid-cols-2 rounded-2xl bg-slate-100 p-1">
-                    <TabsTrigger
-                      value="roundtrip"
-                      className="rounded-xl text-sm font-medium"
-                    >
-                      Round Trip
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="oneway"
-                      className="rounded-xl text-sm font-medium"
-                    >
-                      One Way
-                    </TabsTrigger>
-                  </TabsList>
+                  <div className="flex flex-wrap items-center gap-4 mb-6">
+                    <TabsList className="grid h-12 w-full max-w-[360px] grid-cols-2 rounded-2xl bg-slate-100 p-1 mb-0">
+                      <TabsTrigger
+                        value="roundtrip"
+                        className="rounded-xl text-sm font-medium"
+                      >
+                        Round Trip
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="oneway"
+                        className="rounded-xl text-sm font-medium"
+                      >
+                        One Way
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-12 w-full sm:w-56 justify-between rounded-xl bg-white border border-gray-200 text-left px-3 font-normal hover:bg-white text-gray-800"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-gray-500 shrink-0" />
+                            <span className="truncate">
+                              {passCount} Passenger{passCount > 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-4 bg-white border border-gray-200 rounded-xl shadow-lg z-50" align="start">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">Adults</p>
+                              <p className="text-xs text-gray-400">Age 12+</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={adultCount <= 1 || adultCount <= infantCount}
+                                onClick={() => decrementPassenger("adult")}
+                              >
+                                -
+                              </Button>
+                              <span className="w-4 text-center text-sm font-bold">{adultCount}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={adultCount + childCount + infantCount >= 10}
+                                onClick={() => incrementPassenger("adult")}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">Children</p>
+                              <p className="text-xs text-gray-400">Age 2-11</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={childCount <= 0}
+                                onClick={() => decrementPassenger("child")}
+                              >
+                                -
+                              </Button>
+                              <span className="w-4 text-center text-sm font-bold">{childCount}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={adultCount + childCount + infantCount >= 10}
+                                onClick={() => incrementPassenger("child")}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">Infants</p>
+                              <p className="text-xs text-gray-400">Under 2</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={infantCount <= 0}
+                                onClick={() => decrementPassenger("infant")}
+                              >
+                                -
+                              </Button>
+                              <span className="w-4 text-center text-sm font-bold">{infantCount}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={adultCount + childCount + infantCount >= 10 || infantCount >= adultCount}
+                                onClick={() => incrementPassenger("infant")}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="border-t border-gray-100 pt-2 space-y-1">
+                            <p className="text-[10px] text-gray-400">
+                              • Max 10 passengers total per booking.
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              • Number of infants cannot exceed adults.
+                            </p>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <TabsContent value={tripType} className="mt-0">
-                    <div className="grid grid-cols-12 items-start gap-4">
-                      <div className="col-span-12 md:col-span-3">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Plane className="h-4 w-4" />
-                          From
-                        </Label>
-                        <Select value={from} onValueChange={setFrom}>
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue placeholder="Select airport" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AIRPORTS.map((a) => (
-                              <SelectItem key={a.code} value={a.code}>
-                                {a.city} ({a.code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-12 md:col-span-1 md:pt-7">
-                        <div className="flex h-12 items-center justify-center">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12 rounded-full bg-white"
-                            onClick={swapAirports}
-                          >
-                            <ArrowRightLeft className="h-4 w-4" />
-                          </Button>
+                    <div className="flex flex-col gap-4">
+                      {/* Inputs Row */}
+                      <div className="flex flex-col md:flex-row items-end justify-between gap-4 w-full">
+                        {/* Left Group: From, Swap, To */}
+                        <div className="w-full md:w-[52%] flex items-end gap-3 min-w-0">
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <Label className="mb-2 flex items-center gap-2">
+                              <Plane className="h-4 w-4 shrink-0" />
+                              <span className="truncate">From</span>
+                            </Label>
+                            <Select value={from} onValueChange={setFrom}>
+                              <SelectTrigger className="h-12 data-[size=default]:h-12 w-full min-w-0 rounded-xl bg-white">
+                                <SelectValue placeholder="Select airport" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AIRPORTS.map((a) => (
+                                  <SelectItem key={a.code} value={a.code}>
+                                    {a.city} ({a.code})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex justify-center items-end min-w-0 shrink-0 pb-0.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-12 w-12 rounded-full bg-white border border-gray-200 shrink-0"
+                              onClick={swapAirports}
+                            >
+                              <ArrowRightLeft className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <Label className="mb-2 flex items-center gap-2">
+                              <Plane className="h-4 w-4 rotate-90 shrink-0" />
+                              <span className="truncate">To</span>
+                            </Label>
+                            <Select value={to} onValueChange={setTo}>
+                              <SelectTrigger className="h-12 data-[size=default]:h-12 w-full min-w-0 rounded-xl bg-white">
+                                <SelectValue placeholder="Select airport" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AIRPORTS.map((a) => (
+                                  <SelectItem key={a.code} value={a.code}>
+                                    {a.city} ({a.code})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        {/* Right Group: Depart, Return */}
+                        <div className="w-full md:w-[42%] flex items-end gap-3 min-w-0">
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <Label className="mb-2 flex items-center gap-2">
+                              <Calendar className="h-4 w-4 shrink-0" />
+                              <span className="truncate">Depart</span>
+                            </Label>
+                            <Input
+                              type="date"
+                              min={TODAY}
+                              value={departDate}
+                              onChange={(e) => {
+                                setDepartDate(e.target.value);
+                                if (returnDate && e.target.value > returnDate)
+                                  setReturnDate("");
+                              }}
+                              className="h-12 w-full min-w-0 rounded-xl bg-white"
+                            />
+                          </div>
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <Label className="mb-2 flex items-center gap-2">
+                              <Calendar className="h-4 w-4 shrink-0" />
+                              <span className="truncate">Return</span>
+                            </Label>
+                            <Input
+                              type="date"
+                              min={departDate || TODAY}
+                              value={returnDate}
+                              onChange={(e) => setReturnDate(e.target.value)}
+                              disabled={tripType === "oneway"}
+                              className="h-12 w-full min-w-0 rounded-xl bg-white"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="col-span-12 md:col-span-3">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Plane className="h-4 w-4 rotate-90" />
-                          To
-                        </Label>
-                        <Select value={to} onValueChange={setTo}>
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue placeholder="Select airport" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AIRPORTS.map((a) => (
-                              <SelectItem key={a.code} value={a.code}>
-                                {a.city} ({a.code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-12 md:col-span-2">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          Depart
-                        </Label>
-                        <Input
-                          type="date"
-                          min={TODAY}
-                          value={departDate}
-                          onChange={(e) => {
-                            setDepartDate(e.target.value);
-                            if (returnDate && e.target.value > returnDate)
-                              setReturnDate("");
-                          }}
-                          className="h-12 rounded-xl bg-white"
-                        />
-                      </div>
-                      <div className="col-span-12 md:col-span-2">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          Return
-                        </Label>
-                        <Input
-                          type="date"
-                          min={departDate || TODAY}
-                          value={returnDate}
-                          onChange={(e) => setReturnDate(e.target.value)}
-                          disabled={tripType === "oneway"}
-                          className="h-12 rounded-xl bg-white"
-                        />
-                      </div>
-                      <div className="col-span-12 md:col-span-1">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          Adults
-                        </Label>
-                        <Select
-                          value={adultCount}
-                          onValueChange={setAdultCount}
-                        >
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[1, 2, 3, 4, 5].map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                {n}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
 
-                      <div className="col-span-12 md:col-span-1">
-                        <Label className="mb-2">Children (2-11)</Label>
-                        <Select
-                          value={childCount}
-                          onValueChange={setChildCount}
-                        >
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[0, 1, 2, 3, 4, 5].map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                {n}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="col-span-12 md:col-span-1">
-                        <Label className="mb-2">Infants (&lt;2)</Label>
-                        <Select
-                          value={infantCount}
-                          onValueChange={setInfantCount}
-                        >
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[0, 1, 2, 3, 4, 5].map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                {n}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {infantPassengers > adultPassengers && (
-                          <p className="col-span-12 text-sm text-red-500">
-                            Number of infants must be less than or equal to
-                            number of adults.
-                          </p>
-                        )}
-                      </div>
-                      <div className="col-span-12 flex items-end pt-2">
+                      {/* Search Button Row */}
+                      <div className="w-full pt-1">
                         <Button
                           type="button"
                           onClick={handleSearch}
-                          className="h-12 w-full gap-2 rounded-xl text-base font-semibold bg-[#1a3557] hover:bg-[#1a3557]"
+                          className="h-12 w-full flex items-center justify-center gap-2 rounded-xl bg-[#1a3557] hover:bg-[#12263f] text-white text-base font-semibold transition-colors"
                           disabled={searchLoading}
                         >
                           <Search className="h-5 w-5" />
@@ -2190,9 +2279,9 @@ export default function CustomerBookingPage() {
               const econPrice = flight.price.economy ?? 0;
               const busPrice = flight.price.business ?? 0;
               const firstPrice = flight.price.firstClass ?? 0;
-              const econSold = flight.seatsAvailable.economy === 0;
-              const busSold = flight.seatsAvailable.business === 0;
-              const firstSold = flight.seatsAvailable.firstClass === 0;
+              const econSold = flight.seatsAvailable.economy < seatPassengerCount;
+              const busSold = flight.seatsAvailable.business < seatPassengerCount;
+              const firstSold = flight.seatsAvailable.firstClass < seatPassengerCount;
 
               const SoldOutCol = ({
                 label,

@@ -73,7 +73,7 @@ function LoginPageContent() {
 
     try {
       const res = await fetch(
-        `http://localhost:5290/api/auth/login`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/login`,
         {
           method: "POST",
           headers: {
@@ -90,7 +90,15 @@ function LoginPageContent() {
 
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText || "Đăng nhập thất bại");
+        let message = "Đăng nhập thất bại";
+        if (errorText && !errorText.trim().startsWith("<!DOCTYPE") && !errorText.trim().startsWith("<html") && errorText.length < 100) {
+          message = errorText === "Invalid" ? "Tài khoản, mật khẩu hoặc vai trò không chính xác." : errorText;
+        } else if (res.status === 401) {
+          message = "Tài khoản, mật khẩu hoặc vai trò không chính xác.";
+        } else {
+          message = "Có lỗi xảy ra từ hệ thống. Vui lòng thử lại sau.";
+        }
+        throw new Error(message);
       }
 
       // Tạm thời BE chưa trả JSON thì mình chưa đọc res.json()

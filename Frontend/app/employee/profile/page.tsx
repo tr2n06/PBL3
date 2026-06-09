@@ -301,18 +301,6 @@ const handleConfirmSave = async () => {
                   You can only change address, email, phone number, and password
                 </CardDescription>
               </div>
-<Input
-  id="currentPassword"
-  type="password"
-  value={passwordForm.currentPassword}
-  onChange={(e) =>
-    setPasswordForm({
-      ...passwordForm,
-      currentPassword: e.target.value,
-    })
-  }
-  disabled={!isEditing}
-/>
              {!isEditing && pendingRequest?.status !== "pending" &&  (
                 <Button
                   variant="outline"

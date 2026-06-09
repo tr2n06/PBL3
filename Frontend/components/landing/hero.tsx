@@ -17,14 +17,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plane, ArrowRightLeft, Calendar, Users, Search } from "lucide-react";
 
 const airports = [
-  { code: "JFK", city: "New York", name: "John F. Kennedy International" },
-  { code: "LAX", city: "Los Angeles", name: "Los Angeles International" },
-  { code: "LHR", city: "London", name: "Heathrow Airport" },
-  { code: "CDG", city: "Paris", name: "Charles de Gaulle" },
-  { code: "NRT", city: "Tokyo", name: "Narita International" },
-  { code: "DXB", city: "Dubai", name: "Dubai International" },
-  { code: "SIN", city: "Singapore", name: "Changi Airport" },
-  { code: "SYD", city: "Sydney", name: "Sydney Airport" },
+  { code: "HAN", city: "Ha Noi", name: "Noi Bai Airport" },
+  { code: "HPH", city: "Hai Phong", name: "Cat Bi Airport" },
+  { code: "VDO", city: "Quang Ninh", name: "Van Don Airport" },
+  { code: "DIN", city: "Dien Bien", name: "Dien Bien Phu Airport" },
+  { code: "THD", city: "Thanh Hoa", name: "Tho Xuan Airport" },
+  { code: "VDH", city: "Quang Binh", name: "Dong Hoi Airport" },
+  { code: "VII", city: "Nghe An", name: "Vinh Airport" },
+  { code: "HUI", city: "Thua Thien Hue", name: "Phu Bai Airport" },
+  { code: "DAD", city: "Da Nang", name: "Da Nang Airport" },
+  { code: "VCL", city: "Quang Nam", name: "Chu Lai Airport" },
+  { code: "DLI", city: "Lam Dong", name: "Lien Khuong Airport" },
+  { code: "UIH", city: "Binh Dinh", name: "Phu Cat Airport" },
+  { code: "TBB", city: "Phu Yen", name: "Tuy Hoa Airport" },
+  { code: "CXR", city: "Khanh Hoa", name: "Cam Ranh Airport" },
+  { code: "PXU", city: "Gia Lai", name: "Pleiku Airport" },
+  { code: "BMV", city: "Dak Lak", name: "Buon Ma Thuot Airport" },
+  { code: "SGN", city: "Ho Chi Minh City", name: "Tan Son Nhat Airport" },
+  { code: "VCA", city: "Can Tho", name: "Can Tho Airport" },
+  { code: "VKG", city: "Kien Giang", name: "Rach Gia Airport" },
+  { code: "CAH", city: "Ca Mau", name: "Ca Mau Airport" },
+  { code: "VCS", city: "Ba Ria - Vung Tau", name: "Con Dao Airport" },
+  { code: "PQC", city: "Phu Quoc", name: "Phu Quoc Airport" },
 ];
 
 export function Hero() {

@@ -263,7 +263,7 @@ export default function ForgotPasswordPage() {
       <Wrap step="email">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3"
-            style={{ background: "#1a3557/10", backgroundColor: "rgba(26,53,87,0.08)" }}>
+            style={{ backgroundColor: "rgba(26,53,87,0.08)" }}>
             <Mail className="w-6 h-6" style={{ color: "#1a3557" }} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Forgot Password</h1>

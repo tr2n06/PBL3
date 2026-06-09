@@ -3,7 +3,7 @@ export async function sendForgotPasswordOtp(payload: {
   purpose: "resetPassword";
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/auth/request-otp`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/request-otp`,
     {
       method: "POST",
       credentials: "include",
@@ -31,7 +31,7 @@ export async function verifyForgotPasswordOtp(payload: {
   purpose: "resetPassword";
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/auth/verify-otp`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/verify-otp`,
     {
       method: "POST",
       credentials: "include",
@@ -62,7 +62,7 @@ export async function resetForgotPassword(payload: {
   resetToken?: string;
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/auth/reset-password`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/reset-password`,
     {
       method: "POST",
       credentials: "include",

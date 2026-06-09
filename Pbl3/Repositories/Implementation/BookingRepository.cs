@@ -1,4 +1,4 @@
-﻿using Pbl3.Repositories.Interface;
+using Pbl3.Repositories.Interface;
 using Pbl3.DTOs.Bookings;
 using Pbl3.DataAccess.Data;
 using Pbl3.DataAccess.Models.Bookings;
@@ -21,7 +21,7 @@ namespace Pbl3.Repositories.Implementation
                 idUser = dto.idUser,
                 codeTransaction = dto.codeTransaction,
                 bookedPrice = dto.bookedPrice,
-                bookedTime = dto.bookedTime,
+                bookedTime = DateTime.Parse(dto.bookedTime)
             });
             await context.SaveChangesAsync();
         }
@@ -36,7 +36,7 @@ namespace Pbl3.Repositories.Implementation
                                      idUser = b.idUser?? -1,
                                      codeTransaction = b.codeTransaction,
                                      bookedPrice = b.bookedPrice,
-                                     bookedTime = b.bookedTime,
+                                     bookedTime = b.bookedTime.ToString("yyyy-MM-ddTHH:mm:ss"),
                                  }).FirstOrDefaultAsync();
             return booking;
         }
@@ -58,12 +58,21 @@ namespace Pbl3.Repositories.Implementation
         }
         public async Task<List<SeatResponseDTO>> getSeatMap(SeatRequestDTO dto)
         {
+            var bookedSeatsFromTickets = await context.Ticket
+                .Where(t => t.codeFlight == dto.flightcode 
+                         && t.departureDate == dto.departureDate 
+                         && t.departureTime == dto.departureTime 
+                         && t.status != "cancelled" 
+                         && t.codeSeat != null)
+                .Select(t => t.codeSeat)
+                .ToListAsync();
+
             var seats = await (from s in context.FlightSeat
-                               where dto.flightcode == s.codeFlight && dto.arriveDate == s.arriveDate && dto.arriveTime == s.arriveTime && dto.typeTicket == s.seat.codeType
+                               where dto.flightcode == s.codeFlight && dto.departureDate == s.departureDate && dto.departureTime == s.departureTime && dto.typeTicket == s.seat.codeType
                                select new SeatResponseDTO
                                {
                                    seatNumber = s.codeSeat,
-                                   status = (s.isBooked) ? "booked" : "available"
+                                   status = (s.isBooked || bookedSeatsFromTickets.Contains(s.codeSeat)) ? "booked" : "available"
                                }).ToListAsync();
             return seats;
         }

@@ -3,7 +3,7 @@
     public class UpdateUserDTO
     {
         public int? id { get; set; }
-        public string? name { get;set; }
+        public string? fullName { get;set; }
         public string? gender { get; set; }
         public DateOnly? dateOfBirth { get; set; }
         public string? address { get; set; }

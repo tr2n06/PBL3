@@ -25,13 +25,29 @@ import {
 
 import type { Flight, TicketClass } from "@/lib/types";
 
-// ─── Airports ────────────────────────────────────────────────────────────────
 const AIRPORTS = [
-  { code: "JFK", city: "New York" }, { code: "LAX", city: "Los Angeles" },
-  { code: "LHR", city: "London" }, { code: "CDG", city: "Paris" },
-  { code: "NRT", city: "Tokyo" }, { code: "DXB", city: "Dubai" },
-  { code: "SIN", city: "Singapore" }, { code: "SYD", city: "Sydney" },
-  { code: "HAN", city: "Hanoi" }, { code: "SGN", city: "Ho Chi Minh City" },
+  { code: "HAN", city: "Ha Noi" },
+  { code: "HPH", city: "Hai Phong" },
+  { code: "VDO", city: "Quang Ninh" },
+  { code: "DIN", city: "Dien Bien" },
+  { code: "THD", city: "Thanh Hoa" },
+  { code: "VDH", city: "Quang Binh" },
+  { code: "VII", city: "Nghe An" },
+  { code: "HUI", city: "Thua Thien Hue" },
+  { code: "DAD", city: "Da Nang" },
+  { code: "VCL", city: "Quang Nam" },
+  { code: "DLI", city: "Lam Dong" },
+  { code: "UIH", city: "Binh Dinh" },
+  { code: "TBB", city: "Phu Yen" },
+  { code: "CXR", city: "Khanh Hoa" },
+  { code: "PXU", city: "Gia Lai" },
+  { code: "BMV", city: "Dak Lak" },
+  { code: "SGN", city: "Ho Chi Minh City" },
+  { code: "VCA", city: "Can Tho" },
+  { code: "VKG", city: "Kien Giang" },
+  { code: "CAH", city: "Ca Mau" },
+  { code: "VCS", city: "Ba Ria - Vung Tau" },
+  { code: "PQC", city: "Phu Quoc" },
 ];
 
 // ─── Country Dialing Codes ───────────────────────────────────────────────────
@@ -544,7 +560,7 @@ const s = autoAssignSeat(
     if (!selectedFlight) return null;
     const surcharge = chosenTypes.reduce((s, t, i) =>
       s + (usedSeatSelection && chosenSeats[i] ? SEAT_SURCHARGE[t] : 0), 0);
-    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 30000, 0);
+    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 40000, 0);
     const total = basePrices.reduce((a, b) => a + b, 0) + surcharge + baggageTotal;
     const now = new Date();
     const finalizedPassForms = passForms.map((p) => ({
@@ -877,7 +893,7 @@ const s = autoAssignSeat(
   if (view === "summary") {
     const surcharge = chosenTypes.reduce((s, t, i) =>
       s + (usedSeatSelection && chosenSeats[i] ? SEAT_SURCHARGE[t] : 0), 0);
-    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 30000, 0);
+    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 40000, 0);
     const finalTotal = basePrices.reduce((a, b) => a + b, 0) + surcharge + baggageTotal;
 
     return (
@@ -915,6 +931,7 @@ const s = autoAssignSeat(
                     </div>
                     <div className="flex flex-col items-end gap-2 bg-gray-50 p-3 rounded-xl border border-gray-200">
                       <p className="text-[10px] font-bold text-[#1a3557] uppercase tracking-widest">Extra Checked Baggage</p>
+                      <span className="text-[9px] text-gray-500 font-normal normal-case -mt-1 block">(additional checked baggage kilograms to purchase)</span>
                       <div className="flex items-center gap-2">
                         <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-full border-[#3a6090] text-[#1a3557] hover:bg-[#eef3f9]"
                           onClick={() => setExtraBaggageKg((prev) => { const n = [...prev]; n[i] = Math.max(0, n[i] - 1); return n; })}>
@@ -927,7 +944,7 @@ const s = autoAssignSeat(
                         </Button>
                       </div>
                       {extraBaggageKg[i] > 0 && (
-                        <p className="text-[11px] font-bold text-[#1e4069]">+{formatVND(extraBaggageKg[i] * 30000)} VND</p>
+                        <p className="text-[11px] font-bold text-[#1e4069]">+{formatVND(extraBaggageKg[i] * 40000)} VND</p>
                       )}
                     </div>
                   </div>
@@ -1079,9 +1096,9 @@ const s = autoAssignSeat(
                   const econPrice = flight.price.economy;
                   const busPrice = flight.price.business;
                   const firstPrice = flight.price.firstClass;
-                  const econSold = flight.seatsAvailable.economy === 0;
-                  const busSold = flight.seatsAvailable.business === 0;
-                  const firstSold = flight.seatsAvailable.firstClass === 0;
+                  const econSold = flight.seatsAvailable.economy < passCount;
+                  const busSold = flight.seatsAvailable.business < passCount;
+                  const firstSold = flight.seatsAvailable.firstClass < passCount;
 
                   const SoldOutCol = ({ label, wide }: { label: string; wide?: boolean }) => (
                     <div className={`relative ${wide ? "w-full sm:w-44" : "w-full sm:w-40"} p-4 flex flex-col justify-center items-center bg-gray-100 border-t sm:border-t-0 sm:border-l border-gray-200 cursor-not-allowed`}>

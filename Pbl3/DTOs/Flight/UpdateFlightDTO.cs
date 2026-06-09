@@ -1,17 +1,15 @@
-﻿namespace Pbl3.DTOs.Flight
+namespace Pbl3.DTOs.Flight
 {
     public class UpdateFlightDTO
     {
-       public string? flightNumber { get; set; }
-        //tên viết tắt
-        public string arrivalCode { get; set; }
-        public string departureCode { get; set; }
-        public DateOnly arriveDate { get; set; }
-        public TimeOnly arriveTime { get; set; }
-        public DateOnly departureDate { get; set; }
-        public TimeOnly departureTime { get; set; }
-        public int? price { get; set; }
-        
+        public string? flightId { get; set; }
 
+        public string? flightNumber { get; set; }
+        public string? departureDate { get; set; }
+        public string? departureTime { get; set; }
+        public string? arrivalDate { get; set; }
+        public string? arrivalTime { get; set; }
+        public decimal? priceFlight { get; set; }
+        public string? status { get;set; }
     }
 }

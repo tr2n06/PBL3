@@ -18,9 +18,9 @@ namespace Pbl3.DataAccess.Models.Bookings
         [Column(TypeName = "varchar(6)")]
         public string codeFlight { get; set; }
         [Required]
-        public DateOnly arriveDate { get; set; }
+        public DateOnly departureDate { get; set; }
         [Required]
-        public TimeOnly arriveTime { get; set; }
+        public TimeOnly departureTime { get; set; }
         [Required]
         [Column(TypeName = "varchar(3)")]
         public string? codeSeat { get; set; }

@@ -8,7 +8,7 @@ namespace Pbl3.DTOs.Promotion
     public string reason { get; set; }
 
     public string? codeFlight { get; set; }
-    public DateOnly? arriveDate { get; set; }
-    public TimeOnly? arriveTime { get; set; }
+    public string? departureDate { get; set; }
+    public string? departureTime { get; set; }
 } 
 }

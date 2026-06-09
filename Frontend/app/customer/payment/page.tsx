@@ -20,7 +20,7 @@ import {
   QrCode,
 } from "lucide-react";
 import type { Flight, TicketClass } from "@/lib/types";
-import { completePayment } from "@/lib/payment-api";
+import { completePayment, confirmSuccessPayment } from "@/lib/payment-api";
 
 // ─── types replicated from booking page ─────────────────────────────────────
 type SeatType = "window" | "aisle" | "middle";
@@ -43,14 +43,20 @@ interface BookedTicket {
   id: string;
   bookingRef?: string;
   flight: Flight;
+  returnFlight?: Flight;
   ticketClasses: TicketClass[];
+  returnTicketClasses?: TicketClass[];
   passengers: PassengerInfo[];
   seatNumbers: string[];
   seatTypes: SeatType[];
+  returnSeatNumbers?: string[];
+  returnSeatTypes?: SeatType[];
   basePrices: number[];
+  returnBasePrices?: number[];
   seatSurchargeTotal: number;
   totalPrice: number;
   usedSeatSelection: boolean;
+  usedReturnSeatSelection?: boolean;
   bookedAt: string;
   bookedAtTime: string;
   extraBaggageKg: number[];
@@ -85,7 +91,7 @@ const SEAT_SURCHARGE: Record<SeatType, number> = {
   middle: 0,
 };
 function calculateEarnedPoints(totalPrice: number) {
-  return totalPrice > 5_000_000 ? 100 : 0;
+  return Math.floor(totalPrice / 1000000);
 }
 function formatVND(n: number) {
   return new Intl.NumberFormat("vi-VN").format(n);
@@ -105,6 +111,10 @@ export default function CustomerPaymentPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [bookingRef, setBookingRef] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"checkout" | "qr-display">("checkout");
+
   useEffect(() => {
     const saved = localStorage.getItem("tempBooking");
     if (saved) {
@@ -119,6 +129,67 @@ export default function CustomerPaymentPage() {
     }
   }, [router]);
 
+  useEffect(() => {
+    if (viewMode !== "qr-display" || !bookingRef) return;
+
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/status/${bookingRef}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === "confirmed" && active) {
+            clearInterval(interval);
+            setBooked((prev) =>
+              prev ? { ...prev, bookingRef: bookingRef } : prev
+            );
+            localStorage.removeItem("tempBooking");
+            setIsSuccess(true);
+            setViewMode("checkout");
+          }
+        }
+      } catch (err) {
+        console.error("Status polling failed:", err);
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [viewMode, bookingRef]);
+
+  const handleCheckPaymentStatus = async () => {
+    if (!bookingRef) return;
+    setIsProcessing(true);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/status/${bookingRef}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === "confirmed") {
+          setBooked((prev) =>
+            prev ? { ...prev, bookingRef: bookingRef } : prev
+          );
+          localStorage.removeItem("tempBooking");
+          setIsSuccess(true);
+          setViewMode("checkout");
+        } else {
+          alert("Giao dịch vẫn đang chờ thanh toán. Vui lòng quét mã QR hoặc hoàn tất thanh toán trên cổng.");
+        }
+      } else {
+        alert("Không thể kiểm tra trạng thái thanh toán.");
+      }
+    } catch (err) {
+      alert("Đã xảy ra lỗi khi kiểm tra.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleCompletePayment = async () => {
     if (!paymentMethod || !booked) return;
 
@@ -126,29 +197,75 @@ export default function CustomerPaymentPage() {
 
     try {
       const earnedPoints = calculateEarnedPoints(booked.totalPrice);
-      await completePayment({
-        bookingRef: booked.bookingRef,
-        flightId: booked.flight.id,
-        ticketClasses: booked.ticketClasses,
-        seatNumbers: booked.seatNumbers,
-        passengers: booked.passengers,
-        passengerCounts: booked.passengerCounts,
-        basePrices: booked.basePrices,
-        seatTypes: booked.seatTypes,
-        seatSurchargeTotal: booked.seatSurchargeTotal,
-        totalPrice: booked.totalPrice,
-        extraBaggageKg: booked.extraBaggageKg,
-        pointsUsed: booked.pointsUsed,
-        pointsEarned: earnedPoints,
-        paymentMethod,
-      });
-      setBooked((prev) =>
-        prev ? { ...prev, pointsEarned: earnedPoints } : prev,
-      );
+      
+      let res: any;
+      if (paymentMethod === "qr") {
+        res = await completePayment({
+          bookingRef: booked.bookingRef,
+          flightId: booked.flight.id,
+          returnFlightId: booked.returnFlight?.id,
+          ticketClasses: booked.ticketClasses,
+          returnTicketClasses: booked.returnFlight ? booked.returnTicketClasses : undefined,
+          seatNumbers: booked.seatNumbers,
+          returnSeatNumbers: booked.returnSeatNumbers,
+          passengers: booked.passengers,
+          passengerCounts: booked.passengerCounts,
+          basePrices: booked.basePrices,
+          returnBasePrices: booked.returnBasePrices,
+          seatTypes: booked.seatTypes,
+          returnSeatTypes: booked.returnSeatTypes,
+          seatSurchargeTotal: booked.seatSurchargeTotal,
+          totalPrice: booked.totalPrice,
+          extraBaggageKg: booked.extraBaggageKg,
+          pointsUsed: booked.pointsUsed,
+          pointsEarned: earnedPoints,
+          paymentMethod,
+        });
+      } else {
+        // Direct Success Payment for Card / Cash
+        if (booked.bookingRef) {
+          res = await confirmSuccessPayment({
+            bookingRef: booked.bookingRef,
+            paymentMethod: paymentMethod === "card" ? "card" : "cash",
+            amount: booked.totalPrice
+          });
+          res.bookingRef = booked.bookingRef;
+        } else {
+          // Fallback if bookingRef is missing for some reason
+          res = await completePayment({
+            flightId: booked.flight.id,
+            returnFlightId: booked.returnFlight?.id,
+            ticketClasses: booked.ticketClasses,
+            returnTicketClasses: booked.returnFlight ? booked.returnTicketClasses : undefined,
+            seatNumbers: booked.seatNumbers,
+            returnSeatNumbers: booked.returnSeatNumbers,
+            passengers: booked.passengers,
+            passengerCounts: booked.passengerCounts,
+            basePrices: booked.basePrices,
+            returnBasePrices: booked.returnBasePrices,
+            seatTypes: booked.seatTypes,
+            returnSeatTypes: booked.returnSeatTypes,
+            seatSurchargeTotal: booked.seatSurchargeTotal,
+            totalPrice: booked.totalPrice,
+            extraBaggageKg: booked.extraBaggageKg,
+            pointsUsed: booked.pointsUsed,
+            pointsEarned: earnedPoints,
+            paymentMethod,
+          });
+        }
+      }
 
-      localStorage.removeItem("tempBooking");
-
-      setIsSuccess(true);
+      if (paymentMethod === "qr" && res.qrLink) {
+        setQrCodeUrl(res.qrLink);
+        setBookingRef(res.bookingRef);
+        setViewMode("qr-display");
+      } else {
+        setBooked((prev) =>
+          prev ? { ...prev, pointsEarned: earnedPoints, bookingRef: res.bookingRef } : prev,
+        );
+        localStorage.removeItem("tempBooking");
+        setIsSuccess(true);
+      }
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error("Complete payment failed:", error);
@@ -242,6 +359,47 @@ export default function CustomerPaymentPage() {
               </div>
             </div>
 
+            {booked.returnFlight && (
+              <div className="p-8 grid grid-cols-3 items-center gap-6 border-b bg-gray-50/50">
+                <div className="text-center">
+                  <p className="text-5xl font-light text-gray-400">
+                    {booked.returnFlight.departure.time}
+                  </p>
+                  <p className="text-2xl font-extrabold mt-2 text-gray-800">
+                    {booked.returnFlight.departure.code}
+                  </p>
+                  <p className="text-sm text-gray-500 font-medium">
+                    {booked.returnFlight.departure.city}
+                  </p>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <Clock className="w-5 h-5 text-gray-300" />
+                  <p className="text-sm font-semibold text-gray-400">
+                    {booked.returnFlight.duration}
+                  </p>
+                  <div className="w-full flex items-center">
+                    <div className="h-0.5 flex-1 bg-gray-100" />
+                    <Plane className="w-4 h-4 text-gray-300 mx-2 rotate-180" />
+                    <div className="h-0.5 flex-1 bg-gray-100" />
+                  </div>
+                  <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest">
+                    Confirmed (Return)
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-5xl font-light text-gray-400">
+                    {booked.returnFlight.arrival.time}
+                  </p>
+                  <p className="text-2xl font-extrabold mt-2 text-gray-800">
+                    {booked.returnFlight.arrival.code}
+                  </p>
+                  <p className="text-sm text-gray-500 font-medium">
+                    {booked.returnFlight.arrival.city}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="p-8 border-b space-y-4">
               <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg">
                 <Users className="w-5 h-5 text-gray-400" /> Passenger Details
@@ -267,6 +425,7 @@ export default function CustomerPaymentPage() {
                     </span>
                     <span className="font-extrabold text-[#0b5c66]">
                       {booked.seatNumbers[i]}
+                      {booked.returnSeatNumbers && booked.returnSeatNumbers[i] && ` / Return: ${booked.returnSeatNumbers[i]}`}
                     </span>
                   </div>
                   <div>
@@ -323,6 +482,84 @@ export default function CustomerPaymentPage() {
     );
   }
 
+  if (viewMode === "qr-display") {
+    const theme = CLASS_THEME[booked.ticketClasses[0]];
+    const qrImageSrc = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrCodeUrl || "")}`;
+
+    return (
+      <div className="max-w-2xl mx-auto py-10 px-4 space-y-6 animate-in fade-in duration-300">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">QR Payment Checkout</h1>
+          <p className="text-gray-500">Scan this code using your mobile banking or wallet application</p>
+        </div>
+
+        <Card className="overflow-hidden border-0 shadow-2xl rounded-3xl bg-white">
+          <div className="p-8 space-y-6 flex flex-col items-center">
+            <div className="w-full flex justify-between items-center bg-[#d2eaf4] rounded-2xl p-5 border border-[#b2d9e9]">
+              <div>
+                <span className="text-xs font-bold text-[#0b5c66] uppercase block">Booking Reference</span>
+                <span className="font-mono font-black text-2xl text-gray-800">{bookingRef}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-bold text-[#0b5c66] uppercase block">Total Amount</span>
+                <span className="font-black text-2xl text-[#0b5c66]">{formatVND(booked.totalPrice)} VND</span>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 shadow-inner relative group">
+              <img
+                src={qrImageSrc}
+                alt="Payment QR Code"
+                className="w-64 h-64 mx-auto rounded-2xl shadow-md border-4 border-white"
+              />
+              <div className="absolute inset-0 bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center rounded-3xl">
+                <Badge className="bg-[#0b5c66] text-white px-4 py-2 font-bold flex gap-1 items-center">
+                  <QrCode className="w-4 h-4 animate-pulse" /> Double Tap to Expand
+                </Badge>
+              </div>
+            </div>
+
+            <div className="text-center space-y-2 w-full max-w-sm">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center justify-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                Waiting for mobile payment...
+              </p>
+              <p className="text-sm text-gray-500">
+                You can also directly complete this booking using the mock portal in your browser:
+              </p>
+            </div>
+
+            <div className="flex gap-4 w-full">
+              <Button
+                variant="outline"
+                className="flex-1 h-14 rounded-2xl font-black text-lg border-2 border-gray-100 shadow-sm"
+                asChild
+              >
+                <a href={qrCodeUrl || "#"} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
+                  <Landmark className="w-5 h-5 text-[#0b5c66]" /> Open Mock Portal
+                </a>
+              </Button>
+              <Button
+                disabled={isProcessing}
+                onClick={handleCheckPaymentStatus}
+                className="flex-1 h-14 rounded-2xl bg-[#0b5c66] hover:bg-[#08424a] text-white font-black text-lg shadow-xl shadow-[#c3d4e8]"
+              >
+                {isProcessing ? "Verifying..." : "Verify Payment"}
+              </Button>
+            </div>
+
+            <button
+              onClick={() => setViewMode("checkout")}
+              className="text-xs font-bold text-gray-400 uppercase hover:text-[#0b5c66] transition-colors"
+            >
+              Cancel & Change Payment Method
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto py-10 px-4">
       <div className="mb-10 text-center">
@@ -343,7 +580,7 @@ export default function CustomerPaymentPage() {
           <div className="grid sm:grid-cols-2 gap-4">
             {/* Card Payment */}
             <button
-              onClick={() => setPaymentMethod("card")}
+              onClick={() => alert("We are sorry, this payment method is currently not supported.")}
               className={`relative group flex flex-col items-center p-6 rounded-3xl border-2 transition-all duration-300 bg-white shadow-sm hover:shadow-xl ${
                 paymentMethod === "card"
                   ? "border-[#0b5c66] ring-4 ring-[#0b5c66]/5"
@@ -415,7 +652,7 @@ export default function CustomerPaymentPage() {
                     MULTIPLE CLASSES
                   </Badge>
                   <CardTitle className="text-2xl font-black text-[#0b5c66]">
-                    {booked.flight.departure.code} →{" "}
+                    {booked.flight.departure.code} {booked.returnFlight ? "⇄" : "→"}{" "}
                     {booked.flight.arrival.code}
                   </CardTitle>
                 </div>
@@ -429,7 +666,10 @@ export default function CustomerPaymentPage() {
                     Passengers ({booked.passengers.length})
                   </span>
                   <span className="font-bold text-gray-700">
-                    {formatVND(booked.basePrices.reduce((a, b) => a + b, 0))}{" "}
+                    {formatVND(
+                      booked.basePrices.reduce((a, b) => a + b, 0) +
+                      (booked.returnBasePrices ? booked.returnBasePrices.reduce((a, b) => a + b, 0) : 0)
+                    )}{" "}
                     VND
                   </span>
                 </div>
@@ -453,7 +693,7 @@ export default function CustomerPaymentPage() {
                       <span className="font-bold text-gray-700">
                         {formatVND(
                           booked.extraBaggageKg.reduce((a, b) => a + b, 0) *
-                            30000,
+                            40000,
                         )}{" "}
                         VND
                       </span>

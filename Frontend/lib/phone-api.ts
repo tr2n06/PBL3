@@ -11,7 +11,7 @@ export async function getCustomerByPhone(phone: string) {
   const cleanPhone = phone.replace(/\D/g, "");
 
   const res = await fetch(
-    `http://localhost:5290/api/customers/by-phone?phone=${encodeURIComponent(cleanPhone)}`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/customers/by-phone?phone=${encodeURIComponent(cleanPhone)}`,
     {
       method: "GET",
       credentials: "include",

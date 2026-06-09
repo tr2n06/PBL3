@@ -7,7 +7,7 @@ export type FlightAdminItem = Flight & {
 
 export async function getFlights() {
   const res = await fetch(
-    `http://localhost:5290/api/flights`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights`,
     {
       method: "GET",
       credentials: "include",
@@ -27,25 +27,17 @@ export async function getFlights() {
 
 export async function createFlight(payload: {
   flightNumber: string;
-  departureCity: string;
   departureCode: string;
   departureDate: string;
   departureTime: string;
-  arrivalCity: string;
   arrivalCode: string;
   arrivalDate: string;
   arrivalTime: string;
-  duration: string;
-  economyPrice: number;
-  businessPrice: number;
-  firstClassPrice: number;
-  economySeats: number;
-  businessSeats: number;
-  firstClassSeats: number;
   status: Flight["status"];
+  price?: number;
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/flights`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights`,
     {
       method: "POST",
       credentials: "include",
@@ -68,27 +60,17 @@ export async function createFlight(payload: {
 export async function updateFlight(
   flightId: string,
   payload: {
-    flightNumber: string;
-    departureCity: string;
-    departureCode: string;
-    departureDate: string;
-    departureTime: string;
-    arrivalCity: string;
-    arrivalCode: string;
-    arrivalDate: string;
-    arrivalTime: string; 
-    duration: string;
-    economyPrice: number;
-    businessPrice: number;
-    firstClassPrice: number;
-    economySeats: number;
-    businessSeats: number;
-    firstClassSeats: number;
-    status: Flight["status"];
+    flightNumber?: string | null;
+    departureDate?: string | null;
+    departureTime?: string | null;
+    arrivalDate?: string | null;
+    arrivalTime?: string | null;
+    status?: Flight["status"] | null;
+    priceFlight?: number | null;
   }
 ) {
   const res = await fetch(
-    `http://localhost:5290/api/flights/${flightId}`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights/${flightId}`,
     {
       method: "PATCH",
       credentials: "include",
@@ -109,7 +91,7 @@ export async function updateFlight(
 // Lệch rồi
 export async function deleteFlight(flightId: string) {
   const res = await fetch(
-    `http://localhost:5290/api/flights/${flightId}`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights/${flightId}`,
     {
       method: "DELETE",
       credentials: "include",
@@ -125,4 +107,27 @@ export async function deleteFlight(flightId: string) {
   }
 
   return true;
+}
+
+export async function getFlightNumber(
+  departureCode: string,
+  arrivalCode: string
+): Promise<{ flightNumber: string }> {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights/flight-number?departureCode=${departureCode}&arrivalCode=${arrivalCode}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Failed to fetch flight number");
+  }
+
+  return res.json() as Promise<{ flightNumber: string }>;
 }

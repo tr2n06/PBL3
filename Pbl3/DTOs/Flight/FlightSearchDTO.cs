@@ -3,8 +3,8 @@
     public class FlightSearchDTO
     {
         public string codeFlight { get; set; }
-        public DateOnly? arriveDate { get; set; }
-        public TimeOnly? arriveTime { get; set; }
+        public DateOnly? departureDate { get; set; }
+        public TimeOnly? departureTime { get; set; }
     }
 }
  

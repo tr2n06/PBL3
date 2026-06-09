@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Pbl3.DataAccess.Data;
@@ -91,7 +91,7 @@ namespace Pbl3.Repositories.Implementation
             var user = await (from u in context.User
                               where (u.email == email)
                               select u)
-                              .FirstOrDefaultAsync<User>();
+                              .FirstOrDefaultAsync();
             return user switch
             {
                 Passenger p => p,
@@ -106,10 +106,11 @@ namespace Pbl3.Repositories.Implementation
             if (passenger != null)
             {
                 if (p.gender != null) passenger.gender = (p.gender == "Male") ? 1 : 0;
-                passenger.name = p.name ?? passenger.name;
+                passenger.name = p.fullName ?? passenger.name;
                 passenger.dateOfBirth = p.dateOfBirth ?? passenger.dateOfBirth;
                 passenger.phoneNumber = p.phone ?? passenger.phoneNumber;
                 passenger.email = p.email ?? passenger.email;
+                passenger.address = p.address ?? passenger.address;
                 passenger.pass = p.password ?? passenger.pass;
                 passenger.status = p.status ?? passenger.status;
                 await context.SaveChangesAsync();
@@ -122,9 +123,10 @@ namespace Pbl3.Repositories.Implementation
             {
                 if (p.gender != null) staff.gender = (p.gender == "Male") ? 1 : 0;
                 staff.dateOfBirth = p.dateOfBirth ?? staff.dateOfBirth;
-                staff.name = p.name ?? staff.name;
+                staff.name = p.fullName ?? staff.name;
                 staff.phoneNumber = p.phone ?? staff.phoneNumber;
                 staff.email = p.email ?? staff.email;
+                staff.address = p.address ?? staff.address;
                 staff.pass = p.password ?? staff.pass;
                 staff.status = p.status ?? staff.status;
                 await context.SaveChangesAsync();

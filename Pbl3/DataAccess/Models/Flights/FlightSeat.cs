@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Pbl3.DataAccess.Models.Bookings;
 
@@ -14,13 +14,13 @@ namespace Pbl3.DataAccess.Models.Flights
         [Column(TypeName = "varchar(6)")]
         public string codeFlight { get; set; }
         [Required]
-        public DateOnly arriveDate { get; set; }
+        public DateOnly departureDate { get; set; }
         [Required]
-        public TimeOnly arriveTime { get; set; }
+        public TimeOnly departureTime { get; set; }
         [Required]
         public Boolean isBooked { get; set; }
         public virtual Flight flight { get; set; }
-        public virtual Ticket ticket { get; set; }
+        public virtual List<Ticket> tickets { get; set; } = new List<Ticket>();
         public virtual Seat seat { get; set; }
         }
 }

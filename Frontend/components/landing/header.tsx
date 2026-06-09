@@ -5,8 +5,9 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Plane, User, ChevronDown, LogOut, Ticket } from "lucide-react";
+import { Menu, Plane, User, ChevronDown, LogOut, Ticket, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,10 +16,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getCurrentUser } from "@/lib/profile-api";
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
+
+  // Search booking state
+  const [searchRef, setSearchRef] = useState("");
+
+  const handleSearchBooking = () => {
+    if (!searchRef.trim()) return;
+    router.push(`/search-booking?code=${searchRef.trim().toUpperCase()}`);
+    setSearchRef("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSearchBooking();
+    }
+  };
 
   // Auth state from localStorage
   const [userName, setUserName]   = useState<string | null>(null);
@@ -26,26 +43,38 @@ export function Header() {
   const [userRole, setUserRole]   = useState<string | null>(null);
   const [userPoints, setUserPoints] = useState<number | null>(null);
 
-  useEffect(() => {
-    const name  = localStorage.getItem("userName");
-    const email = localStorage.getItem("userEmail");
-    const role  = localStorage.getItem("userRole");
-    const points = localStorage.getItem("vflight_user_points");
-    setUserName(name);
-    setUserEmail(email);
-    setUserRole(role);
-    if (points) setUserPoints(parseInt(points, 10));
-  }, []);
-
   const handleLogout = () => {
     localStorage.removeItem("userName");
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userRole");
+    localStorage.removeItem("vflight_user_points");
     setUserName(null);
     setUserEmail(null);
     setUserRole(null);
+    setUserPoints(null);
     router.push("/login");
   };
+
+  useEffect(() => {
+    const email = localStorage.getItem("userEmail");
+    const role  = localStorage.getItem("userRole");
+    setUserEmail(email);
+    setUserRole(role);
+
+    if (email && role) {
+      getCurrentUser()
+        .then((me) => {
+          setUserName(me.fullName);
+          if (me.availablePoints !== undefined) {
+            setUserPoints(me.availablePoints);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch user profile in header:", err);
+          handleLogout();
+        });
+    }
+  }, []);
 
   const dashboardHref =
     userRole === "employee" ? "/employee/booking"
@@ -150,6 +179,23 @@ export function Header() {
             </>
           ) : (
             <>
+              <div className="flex items-center gap-1 mr-2 relative">
+                <Input
+                  placeholder="Mã đặt chỗ..."
+                  value={searchRef}
+                  onChange={(e) => setSearchRef(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-36 h-9 text-xs pr-7 border-gray-200"
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleSearchBooking}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-[#0b5c66] hover:bg-transparent"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
               <Button variant="ghost" asChild><Link href="/login">Log In</Link></Button>
               <Button asChild><Link href="/signup">Sign Up</Link></Button>
             </>
@@ -203,6 +249,21 @@ export function Header() {
                   </>
                 ) : (
                   <>
+                    <div className="flex items-center gap-2 mb-2 w-full">
+                      <Input
+                        placeholder="Nhập mã đặt chỗ..."
+                        value={searchRef}
+                        onChange={(e) => setSearchRef(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="flex-1 h-10 text-sm border-gray-200"
+                      />
+                      <Button
+                        onClick={() => { handleSearchBooking(); setIsOpen(false); }}
+                        className="bg-[#0b5c66] hover:bg-[#094a52] h-10 px-4 text-xs font-semibold"
+                      >
+                        Tìm kiếm
+                      </Button>
+                    </div>
                     <Button variant="outline" asChild>
                       <Link href="/login" onClick={() => setIsOpen(false)}>Log In</Link>
                     </Button>

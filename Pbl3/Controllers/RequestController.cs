@@ -18,7 +18,7 @@ namespace Pbl3.Controllers
     public class RequestController : ControllerBase
     {
         private readonly IRequestService service;
-        RequestController(IRequestService service)
+        public RequestController(IRequestService service)
         {
             this.service = service;
         }
@@ -34,7 +34,7 @@ namespace Pbl3.Controllers
             }
             catch (Exception)
             {
-                return BadRequest("Error");
+                return BadRequest(new { message = "Error"});
             }
         }
 
@@ -49,23 +49,24 @@ namespace Pbl3.Controllers
                     var jwt = handler.ReadJwtToken(token);
 
                     var id = jwt.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
-                    if (id == null) return BadRequest("Can't find this user");
+                    if (id == null) return BadRequest(new { message = "Can't find this user"});
                     var type = jwt.Claims.FirstOrDefault(c => c.Type == "type")?.Value;
-                    if (type == "Admin") return BadRequest("Can't find this user");
+                    if (type != "Admin") return BadRequest(new { message = "Can't find this user"});
                     await service.acceptRequest(requestId, int.Parse(id));
-                    return Ok("Successfull");
+                    return Ok(new { message = "Successfull"});
                 }
                 catch (Exception e)
                 {
                     return BadRequest(e.ToString());
                 }
             }
-            else return BadRequest("Can't find this user");
+            else return BadRequest(new { message = "Can't find this user"});
         }
 
         [HttpPatch("{requestId}/reject")]
-        public async Task<IActionResult> RejectRequest(RejectedRequestDTO dto)
+        public async Task<IActionResult> RejectRequest([FromRoute] string requestId, [FromBody] RejectedRequestDTO dto)
         {
+            dto.requestId = requestId;
             if (Request.Cookies.TryGetValue("jwt", out string token))
             {
                 try
@@ -74,19 +75,19 @@ namespace Pbl3.Controllers
                     var jwt = handler.ReadJwtToken(token);
 
                     var id = jwt.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
-                    if (id == null) return BadRequest("Can't find this user");
+                    if (id == null) return BadRequest(new { message = "Can't find this user"});
                     var type = jwt.Claims.FirstOrDefault(c => c.Type == "type")?.Value;
-                    if (type == "Admin") return BadRequest("Can't find this user");
+                    if (type != "Admin") return BadRequest(new { message = "Can't find this user"});
                     dto.admin_id = int.Parse(id);
                     await service.rejectRequest(dto);
-                    return Ok("Successfull");
+                    return Ok(new { message = "Successfull"});
                 }
                 catch (Exception e)
                 {
                     return BadRequest(e.ToString());
                 }
             }
-            else return BadRequest("Can't find this user");
+            else return BadRequest(new { message = "Can't find this user"});
         }
     }
 }

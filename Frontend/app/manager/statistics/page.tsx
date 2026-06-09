@@ -41,7 +41,7 @@ import {
   Cell
 } from "recharts"
 import { TrendingUp, TrendingDown, DollarSign, Ticket, XCircle, Users, UserX } from "lucide-react"
-import { mockUsers, mockTickets } from "@/lib/mock-data"
+
 
 
 
@@ -297,19 +297,19 @@ const { overview, revenueData, cancellationData, cancellationReasons, frequentCa
         </Card>
       </div>
 
-      {/* Customer Overview */}
+      {/* User Overview */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Customer Overview
+            User Overview
           </CardTitle>
-          <CardDescription>All registered customers and their status</CardDescription>
+          <CardDescription>All registered users and their status</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3 mb-6">
             <div className="rounded-lg border p-4">
-              <div className="text-sm text-muted-foreground">Total Customers</div>
+              <div className="text-sm text-muted-foreground">Total Users</div>
               <div className="text-2xl font-bold">{customerOverview.totalCustomers}</div>
             </div>
             <div className="rounded-lg border p-4">

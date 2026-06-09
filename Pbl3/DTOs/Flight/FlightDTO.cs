@@ -5,16 +5,18 @@
         //Tên đầy đủ
         public string id { get; set; }
         public string flightNumber { get; set; }
+        public string airline { get;set; }
         public LocationDTO arrival { get; set; }
         public LocationDTO departure { get; set; }
         public string duration { get; set; }
         public PriceDTO price { get; set; }
+        public decimal priceFlight { get;set; }
         public SeatAvailableDTO seatsAvailable { get; set; }
         public string status { get; set; } //scheduled, boarding, departed, arrived, cancelled
         public int discount { get; set; }
         public bool isPromotion { get; set; }
         public bool? hasBookings { get; set; }
-        public int? bookingCount { get; set; }
+        public int? bookedCount { get; set; }
     }
 
     public class LocationDTO
@@ -31,14 +33,14 @@
     public class PriceDTO
     {
         public decimal economy { get; set; }
-        public decimal bussiness { get; set; }
+        public decimal business { get; set; }
         public decimal firstClass { get; set; }
     }
 
     public class SeatAvailableDTO
     {
         public int economy { get; set; } = 0;
-        public int bussiness { get; set; } = 0;
+        public int business { get; set; } = 0;
         public int firstClass { get; set; } = 0;
     }
 }

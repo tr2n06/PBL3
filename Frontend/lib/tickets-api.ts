@@ -13,7 +13,13 @@ export type TicketApiItem = {
   baggage?: {
     cabin: number
     checked: number
+    checkedBaggage?: number
+    priceCabin?: number
+    checkedCabin?: number
   } 
+  price?: number
+  isCancelled?: boolean
+  isUpgraded?: boolean
   flight: { 
     id: string | number
     flightNumber: string
@@ -45,9 +51,13 @@ export type CustomerTicket = {
   baggage: {
     cabin: number
     checked: number
+    priceCabin: number
+    checkedCabin: number
   }
   flight: Flight
   price: number 
+  isCancelled: boolean
+  isUpgraded: boolean
 }
 
 function mapFlight(f: TicketApiItem['flight']): Flight {
@@ -85,6 +95,9 @@ function mapFlight(f: TicketApiItem['flight']): Flight {
 }
 
 function mapTicket(item: TicketApiItem): CustomerTicket {
+  const checkedVal = item.baggage
+    ? (item.baggage.checked ?? item.baggage.checkedBaggage ?? 0)
+    : 0;
   return {
     id: String(item.id),
     bookingRef: item.bookingRef,
@@ -95,15 +108,27 @@ function mapTicket(item: TicketApiItem): CustomerTicket {
     passengerEmail: item.passengerEmail,
     seatNumber: item.seatNumber,
     ticketClass: item.ticketClass,
-    baggage: item.baggage ?? { cabin: 0, checked: 0 },
+    baggage: {
+      cabin: item.baggage?.cabin ?? 0,
+      checked: checkedVal,
+      priceCabin: item.baggage?.priceCabin ?? 0,
+      checkedCabin: item.baggage?.checkedCabin ?? (checkedVal * 40000),
+    },
     flight: mapFlight(item.flight),
-    price: item.totalPrice,
+    price: item.price ?? item.totalPrice,
+    isCancelled: item.isCancelled ?? false,
+    isUpgraded: item.isUpgraded ?? false,
   }
 }
 
-export async function getMyTickets() {
+export type MyTicketsResponse = {
+  roundTickets: { ticket: CustomerTicket; returnTicket: CustomerTicket }[]
+  tickets: CustomerTicket[]
+}
+
+export async function getMyTickets(): Promise<MyTicketsResponse> {
   const res = await fetch(
-    `http://localhost:5290/api/tickets/my`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tickets/my`,
     {
       method: 'GET', 
       credentials: 'include', 
@@ -118,6 +143,46 @@ export async function getMyTickets() {
     throw new Error(text || 'Không lấy được danh sách vé')
   }
 
-  const data = (await res.json()) as TicketApiItem[]
-  return data.map(mapTicket)
+  const data = (await res.json()) as {
+    roundTickets: { ticket: TicketApiItem; returnTicket: TicketApiItem }[]
+    tickets: TicketApiItem[]
+  }
+
+  return {
+    roundTickets: (data.roundTickets || []).map(group => ({
+      ticket: mapTicket(group.ticket),
+      returnTicket: mapTicket(group.returnTicket)
+    })),
+    tickets: (data.tickets || []).map(mapTicket)
+  }
+}
+
+export async function getTicketsByBookingCode(bookingRef: string): Promise<MyTicketsResponse> {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tickets/booking/${bookingRef}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || 'Không tìm thấy vé cho mã đặt chỗ này')
+  }
+
+  const data = (await res.json()) as {
+    roundTickets: { ticket: TicketApiItem; returnTicket: TicketApiItem }[]
+    tickets: TicketApiItem[]
+  }
+
+  return {
+    roundTickets: (data.roundTickets || []).map(group => ({
+      ticket: mapTicket(group.ticket),
+      returnTicket: mapTicket(group.returnTicket)
+    })),
+    tickets: (data.tickets || []).map(mapTicket)
+  }
 }

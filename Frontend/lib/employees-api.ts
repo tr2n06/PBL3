@@ -14,7 +14,7 @@ export type EmployeeItem = {
 
 export async function getEmployees() {
   const res = await fetch(
-    `http://localhost:5290/api/auth/employees`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/employees`,
     {
       method: "GET",
       credentials: "include",
@@ -32,9 +32,9 @@ export async function getEmployees() {
   return res.json() as Promise<EmployeeItem[]>;
 }
 
-export async function blockEmployee(employeeId: string) {
+export async function blockEmployee(employeeId: number) {
   const res = await fetch(
-    `http://localhost:5290/api/employees/${employeeId}/block`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/employees/${employeeId}/block`,
     {
       method: "PATCH",
       credentials: "include",
@@ -52,9 +52,9 @@ export async function blockEmployee(employeeId: string) {
   return res.json();
 }
 
-export async function unblockEmployee(employeeId: string) {
+export async function unblockEmployee(employeeId: number) {
   const res = await fetch(
-    `http://localhost:5290/api/employees/${employeeId}/unblock`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/employees/${employeeId}/unblock`,
     {
       method: "PATCH",
       credentials: "include",

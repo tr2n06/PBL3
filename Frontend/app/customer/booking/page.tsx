@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { completePayment } from "@/lib/payment-api";
 import { getCurrentUser } from "@/lib/profile-api";
 import {
   Card,
@@ -23,7 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Plane,
   ArrowRightLeft,
@@ -44,23 +46,37 @@ import {
 } from "lucide-react";
 import {
   searchFlights,
+  searchRoundFlights,
   getSeatAvailability,
   type FlightApiItem,
+  type RoundFlight,
 } from "@/lib/booking-api";
 import type { Flight, TicketClass } from "@/lib/types";
 
 // ─── Airports ────────────────────────────────────────────────────────────────
 const AIRPORTS = [
-  { code: "JFK", city: "New York" },
-  { code: "LAX", city: "Los Angeles" },
-  { code: "LHR", city: "London" },
-  { code: "CDG", city: "Paris" },
-  { code: "NRT", city: "Tokyo" },
-  { code: "DXB", city: "Dubai" },
-  { code: "SIN", city: "Singapore" },
-  { code: "SYD", city: "Sydney" },
-  { code: "HAN", city: "Hanoi" },
+  { code: "HAN", city: "Ha Noi" },
+  { code: "HPH", city: "Hai Phong" },
+  { code: "VDO", city: "Quang Ninh" },
+  { code: "DIN", city: "Dien Bien" },
+  { code: "THD", city: "Thanh Hoa" },
+  { code: "VDH", city: "Quang Binh" },
+  { code: "VII", city: "Nghe An" },
+  { code: "HUI", city: "Thua Thien Hue" },
+  { code: "DAD", city: "Da Nang" },
+  { code: "VCL", city: "Quang Nam" },
+  { code: "DLI", city: "Lam Dong" },
+  { code: "UIH", city: "Binh Dinh" },
+  { code: "TBB", city: "Phu Yen" },
+  { code: "CXR", city: "Khanh Hoa" },
+  { code: "PXU", city: "Gia Lai" },
+  { code: "BMV", city: "Dak Lak" },
   { code: "SGN", city: "Ho Chi Minh City" },
+  { code: "VCA", city: "Can Tho" },
+  { code: "VKG", city: "Kien Giang" },
+  { code: "CAH", city: "Ca Mau" },
+  { code: "VCS", city: "Ba Ria - Vung Tau" },
+  { code: "PQC", city: "Kien Giang" },
 ];
 
 // ─── Country Dialing Codes ───────────────────────────────────────────────────
@@ -350,7 +366,7 @@ interface PassengerInfo {
 function emptyPassenger(passengerType: PassengerType): PassengerInfo {
   return {
     passengerType,
-    title: "Mr",
+    title: "",
     firstName: "",
     middleName: "",
     lastName: "",
@@ -381,6 +397,10 @@ interface BookedTicket {
   extraBaggageKg: number[];
   pointsUsed: number;
   pointsEarned: number;
+}
+interface MappedRoundFlight {
+  departure: Flight;
+  arrival: Flight;
 }
 
 // ─── AirplaneSeatMap ─────────────────────────────────────────────────────────
@@ -674,24 +694,61 @@ export default function CustomerBookingPage() {
   const [to, setTo] = useState("");
   const [departDate, setDepartDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
-  const [adultCount, setAdultCount] = useState("1");
-  const [childCount, setChildCount] = useState("0");
-  const [infantCount, setInfantCount] = useState("0");
+  const [adultCount, setAdultCount] = useState(1);
+  const [childCount, setChildCount] = useState(0);
+  const [infantCount, setInfantCount] = useState(0);
+
+  const incrementPassenger = (type: "adult" | "child" | "infant") => {
+    const total = adultCount + childCount + infantCount;
+    if (total >= 10) return;
+
+    if (type === "adult") {
+      setAdultCount((prev) => prev + 1);
+    } else if (type === "child") {
+      setChildCount((prev) => prev + 1);
+    } else if (type === "infant") {
+      if (infantCount < adultCount) {
+        setInfantCount((prev) => prev + 1);
+      }
+    }
+  };
+
+  const decrementPassenger = (type: "adult" | "child" | "infant") => {
+    if (type === "adult") {
+      if (adultCount > 1 && adultCount > infantCount) {
+        setAdultCount((prev) => prev - 1);
+      }
+    } else if (type === "child") {
+      if (childCount > 0) {
+        setChildCount((prev) => prev - 1);
+      }
+    } else if (type === "infant") {
+      if (infantCount > 0) {
+        setInfantCount((prev) => prev - 1);
+      }
+    }
+  };
   const [searched, setSearched] = useState(false);
   const [flights, setFlights] = useState<Flight[]>([]);
+  const [roundFlights, setRoundFlights] = useState<MappedRoundFlight[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
 
   const [takenSeats, setTakenSeats] = useState<string[]>([]);
   const [seatLoading, setSeatLoading] = useState(false);
+  const [takenReturnSeats, setTakenReturnSeats] = useState<string[]>([]);
+  const [returnSeatLoading, setReturnSeatLoading] = useState(false);
+
   // Booking flow
   const [view, setView] = useState<"search" | "info" | "summary" | "invoice">(
     "search",
   );
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
+  const [selectedReturnFlight, setSelectedReturnFlight] = useState<Flight | null>(null);
   const [selectedClass, setSelectedClass] = useState<TicketClass>("economy");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [seatMapMode, setSeatMapMode] = useState(false);
+  const [seatMapStep, setSeatMapStep] = useState<"outbound" | "return">("outbound");
   const [activePassengerIndex, setActivePassengerIndex] = useState<
     number | null
   >(null);
@@ -699,6 +756,9 @@ export default function CustomerBookingPage() {
   const [chosenSeats, setChosenSeats] = useState<string[]>([]);
   const [chosenTypes, setChosenTypes] = useState<SeatType[]>([]);
   const [usedSeatSelection, setUsedSeatSelection] = useState(false);
+  const [chosenReturnSeats, setChosenReturnSeats] = useState<string[]>([]);
+  const [chosenReturnTypes, setChosenReturnTypes] = useState<SeatType[]>([]);
+  const [usedReturnSeatSelection, setUsedReturnSeatSelection] = useState(false);
 
   // Forms
   const [passForms, setPassForms] = useState<PassengerInfo[]>([]);
@@ -710,17 +770,17 @@ export default function CustomerBookingPage() {
 
   // Summary state
   const [extraBaggageKg, setExtraBaggageKg] = useState<number[]>([]);
-const [pointsBalance, setPointsBalance] = useState(0);
-const [pointsToUseInput, setPointsToUseInput] = useState("0");
+  const [pointsBalance, setPointsBalance] = useState(0);
+  const [pointsToUseInput, setPointsToUseInput] = useState("0");
 
   useEffect(() => {
     const loadRewardPoints = async () => {
       try {
         const me = await getCurrentUser();
-setPointsBalance(me.availablePoints ?? 0);
+        setPointsBalance(me.availablePoints ?? 0);
       } catch (error) {
         console.error("Load reward points failed:", error);
-  setPointsBalance(0);
+        setPointsBalance(0);
       }
     };
 
@@ -745,12 +805,31 @@ setPointsBalance(me.availablePoints ?? 0);
       setSeatLoading(false);
     }
   };
+  const loadReturnSeatAvailability = async (
+    flightId: string,
+    tClass: TicketClass,
+  ) => {
+    setReturnSeatLoading(true);
+    try {
+      const data = await getSeatAvailability(flightId, tClass);
+      setTakenReturnSeats(
+        data
+          .filter((seat) => seat.status === "booked")
+          .map((seat) => seat.seatNumber),
+      );
+    } catch (error) {
+      console.error("Load return seats failed:", error);
+      setTakenReturnSeats([]);
+    } finally {
+      setReturnSeatLoading(false);
+    }
+  };
 
   // ── Computed ──
-const handlePointsInputChange = (value: string) => {
-  const clean = value.replace(/\D/g, "");
-  setPointsToUseInput(clean || "0");
-};
+  const handlePointsInputChange = (value: string) => {
+    const clean = value.replace(/\D/g, "");
+    setPointsToUseInput(clean || "0");
+  };
   const handleSearch = async () => {
     setSearchLoading(true);
     setSearchError("");
@@ -764,19 +843,36 @@ const handlePointsInputChange = (value: string) => {
       return;
     }
     try {
-      const data = await searchFlights({
-        from,
-        to,
-        departDate,
-        returnDate,
-        tripType: tripType as "oneway" | "roundtrip",  
-        passengers: passCount || 1,
-      });
-
-      setFlights(data.map(mapApiFlightToFlight));
+      if (tripType === "roundtrip") {
+        const data = await searchRoundFlights({
+          from,
+          to,
+          departDate,
+          returnDate,
+          tripType: "roundtrip",
+          passengers: passCount || 1,
+        });
+        setRoundFlights(
+          data.map((item) => ({
+            departure: mapApiFlightToFlight(item.departure),
+            arrival: mapApiFlightToFlight(item.arrival),
+          }))
+        );
+      } else {
+        const data = await searchFlights({
+          from,
+          to,
+          departDate,
+          returnDate,
+          tripType: "oneway",
+          passengers: passCount || 1,
+        });
+        setFlights(data.map(mapApiFlightToFlight));
+      }
     } catch (error) {
       console.error("Search flights failed:", error);
       setFlights([]);
+      setRoundFlights([]);
       setSearchError(
         error instanceof Error ? error.message : "Có lỗi khi tìm chuyến bay",
       );
@@ -787,38 +883,63 @@ const handlePointsInputChange = (value: string) => {
 
   const filteredFlights = flights;
 
-  const adultPassengers = parseInt(adultCount, 10) || 0;
-  const childPassengers = parseInt(childCount, 10) || 0;
-  const infantPassengers = parseInt(infantCount, 10) || 0;
+  const adultPassengers = adultCount;
+  const childPassengers = childCount;
+  const infantPassengers = infantCount;
   const passCount = adultPassengers + childPassengers + infantPassengers;
   const seatPassengerCount = adultPassengers + childPassengers;
   const basePrices =
     selectedFlight && passForms.length > 0
       ? (() => {
-          let seatCursor = 0;
+        let seatCursor = 0;
 
-          return passForms.map((passenger) => {
-            const multiplier = getPassengerPriceMultiplier(
-              passenger.passengerType,
-            );
+        return passForms.map((passenger) => {
+          const multiplier = getPassengerPriceMultiplier(
+            passenger.passengerType,
+          );
 
-            if (passenger.passengerType === "infant") {
-              const baseFare = selectedFlight.price[selectedClass] ?? 0;
-              return Math.round(baseFare * multiplier);
-            }
-
-            const seatClass = passengerClasses[seatCursor] || selectedClass;
-            seatCursor++;
-
-            const baseFare = selectedFlight.price[seatClass] ?? 0;
+          if (passenger.passengerType === "infant") {
+            const baseFare = selectedFlight.price[selectedClass] ?? 0;
             return Math.round(baseFare * multiplier);
-          });
-        })()
+          }
+
+          const seatClass = passengerClasses[seatCursor] || selectedClass;
+          seatCursor++;
+
+          const baseFare = selectedFlight.price[seatClass] ?? 0;
+          return Math.round(baseFare * multiplier);
+        });
+      })()
       : Array(passCount).fill(0);
+
+  const returnBasePrices =
+    selectedReturnFlight && passForms.length > 0
+      ? (() => {
+        let seatCursor = 0;
+
+        return passForms.map((passenger) => {
+          const multiplier = getPassengerPriceMultiplier(
+            passenger.passengerType,
+          );
+
+          if (passenger.passengerType === "infant") {
+            const baseFare = selectedReturnFlight.price[selectedClass] ?? 0;
+            return Math.round(baseFare * multiplier);
+          }
+
+          const seatClass = passengerClasses[seatCursor] || selectedClass;
+          seatCursor++;
+
+          const baseFare = selectedReturnFlight.price[seatClass] ?? 0;
+          return Math.round(baseFare * multiplier);
+        });
+      })()
+      : Array(passCount).fill(0);
+
   // Surcharge only when user explicitly used seat map
-  const totalSurcharge = usedSeatSelection
-    ? chosenTypes.reduce((s, t) => s + SEAT_SURCHARGE[t], 0)
-    : 0;
+  const totalSurcharge =
+    (usedSeatSelection ? chosenTypes.reduce((s, t) => s + SEAT_SURCHARGE[t], 0) : 0) +
+    (usedReturnSeatSelection ? chosenReturnTypes.reduce((s, t) => s + SEAT_SURCHARGE[t], 0) : 0);
 
   // ── Handlers ──
   const swapAirports = () => {
@@ -827,8 +948,20 @@ const handlePointsInputChange = (value: string) => {
     setTo(t);
   };
 
-  const openDialog = (flight: Flight, tClass: TicketClass) => {
+  const openDialog = (flight: Flight, tClass: TicketClass, returnFlight?: Flight) => {
     loadSeatAvailability(flight.id, tClass);
+    if (returnFlight) {
+      loadReturnSeatAvailability(returnFlight.id, tClass);
+      setSelectedReturnFlight(returnFlight);
+      setChosenReturnSeats(Array(seatPassengerCount).fill(""));
+      setChosenReturnTypes(Array(seatPassengerCount).fill("window" as SeatType));
+      setUsedReturnSeatSelection(false);
+    } else {
+      setSelectedReturnFlight(null);
+      setChosenReturnSeats([]);
+      setChosenReturnTypes([]);
+      setUsedReturnSeatSelection(false);
+    }
     setSelectedFlight(flight);
     setSelectedClass(tClass);
     setPassengerClasses(Array(seatPassengerCount).fill(tClass));
@@ -842,20 +975,37 @@ const handlePointsInputChange = (value: string) => {
 
   const toggleSeat = (seatId: string, type: SeatType) => {
     if (activePassengerIndex === null) return;
-    setChosenSeats((prev) => {
-      const next = [...prev];
-      if (next[activePassengerIndex] === seatId) {
-        next[activePassengerIndex] = "";
-      } else {
-        next[activePassengerIndex] = seatId;
-      }
-      return next;
-    });
-    setChosenTypes((prev) => {
-      const next = [...prev];
-      next[activePassengerIndex] = type;
-      return next;
-    });
+    if (seatMapStep === "outbound") {
+      setChosenSeats((prev) => {
+        const next = [...prev];
+        if (next[activePassengerIndex] === seatId) {
+          next[activePassengerIndex] = "";
+        } else {
+          next[activePassengerIndex] = seatId;
+        }
+        return next;
+      });
+      setChosenTypes((prev) => {
+        const next = [...prev];
+        next[activePassengerIndex] = type;
+        return next;
+      });
+    } else {
+      setChosenReturnSeats((prev) => {
+        const next = [...prev];
+        if (next[activePassengerIndex] === seatId) {
+          next[activePassengerIndex] = "";
+        } else {
+          next[activePassengerIndex] = seatId;
+        }
+        return next;
+      });
+      setChosenReturnTypes((prev) => {
+        const next = [...prev];
+        next[activePassengerIndex] = type;
+        return next;
+      });
+    }
     setActivePassengerIndex(null);
   };
 
@@ -911,6 +1061,51 @@ const handlePointsInputChange = (value: string) => {
     setChosenSeats(finalSeats);
     setChosenTypes(finalTypes);
     setUsedSeatSelection(withSeatMap);
+
+    if (selectedReturnFlight) {
+      const takenReturn: string[] = [];
+      const finalReturnSeats: string[] = [];
+      const finalReturnTypes: SeatType[] = [];
+
+      let returnSeatCursor = 0;
+
+      for (let i = 0; i < passengerSeed.length; i++) {
+        const passengerType = passengerSeed[i].passengerType;
+
+        if (passengerType === "infant") {
+          finalReturnSeats.push("");
+          finalReturnTypes.push("middle");
+          continue;
+        }
+
+        if (withSeatMap && chosenReturnSeats[returnSeatCursor]) {
+          finalReturnSeats.push(chosenReturnSeats[returnSeatCursor]);
+          finalReturnTypes.push(chosenReturnTypes[returnSeatCursor]);
+          takenReturn.push(chosenReturnSeats[returnSeatCursor]);
+        } else {
+          const s = autoAssignSeat(
+            passengerClasses[returnSeatCursor] || selectedClass,
+            takenReturn,
+            takenReturnSeats,
+          );
+          takenReturn.push(s);
+          finalReturnSeats.push(s);
+          finalReturnTypes.push(
+            getSeatType(
+              s.replace(/\d+/, ""),
+              passengerClasses[returnSeatCursor] || selectedClass,
+            ),
+          );
+        }
+
+        returnSeatCursor++;
+      }
+
+      setChosenReturnSeats(finalReturnSeats);
+      setChosenReturnTypes(finalReturnTypes);
+      setUsedReturnSeatSelection(withSeatMap);
+    }
+
     setPassForms(passengerSeed);
     setPhoneErrors({});
     setEmailErrors({});
@@ -992,36 +1187,83 @@ const handlePointsInputChange = (value: string) => {
     setView("summary");
   };
 
-  const handleProceedToPayment = () => {
+  const handleProceedToPayment = async () => {
     if (!selectedFlight) return;
 
-    const surcharge = chosenTypes.reduce(
+    const outboundSurcharge = chosenTypes.reduce(
       (s, t, i) =>
         s + (usedSeatSelection && chosenSeats[i] ? SEAT_SURCHARGE[t] : 0),
       0,
     );
+    const inboundSurcharge = chosenReturnTypes.reduce(
+      (s, t, i) =>
+        s + (usedReturnSeatSelection && chosenReturnSeats[i] ? SEAT_SURCHARGE[t] : 0),
+      0,
+    );
+    const surcharge = outboundSurcharge + inboundSurcharge;
 
-    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 30000, 0);
+    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 40000, 0);
     const totalWithoutDiscount =
-      basePrices.reduce((a, b) => a + b, 0) + surcharge + baggageTotal;
+      basePrices.reduce((a, b) => a + b, 0) +
+      (selectedReturnFlight ? returnBasePrices.reduce((a, b) => a + b, 0) : 0) +
+      surcharge +
+      baggageTotal;
 
-  const maxPointsUsable = Math.min(pointsBalance, totalWithoutDiscount);
-const parsedPointsToUse = Number(pointsToUseInput || 0);
-const pointsUsed = Math.max(0, Math.min(parsedPointsToUse, maxPointsUsable));
-const finalTotal = totalWithoutDiscount - pointsUsed;
-
-   
+    const maxPointsUsable = Math.min(pointsBalance, totalWithoutDiscount);
+    const parsedPointsToUse = Number(pointsToUseInput || 0);
+    const pointsUsed = Math.max(0, Math.min(parsedPointsToUse, maxPointsUsable));
+    const finalTotal = totalWithoutDiscount - pointsUsed;
 
     const finalizedPassForms = passForms.map((p) => ({
       ...p,
       phone: (p.phone || "").startsWith("0") ? p.phone.substring(1) : p.phone,
     }));
 
+    // Pre-create the booking in "pending" status in database
+    let bookingRef = "";
+    try {
+      const pendingRes = await completePayment({
+        flightId: selectedFlight.id,
+        returnFlightId: selectedReturnFlight?.id,
+        ticketClasses: passengerClasses,
+        returnTicketClasses: selectedReturnFlight ? passengerClasses : undefined,
+        seatNumbers: chosenSeats,
+        returnSeatNumbers: chosenReturnSeats,
+        passengers: finalizedPassForms,
+        passengerCounts: {
+          adults: adultPassengers,
+          children: childPassengers,
+          infants: infantPassengers,
+        },
+        basePrices,
+        returnBasePrices,
+        seatTypes: chosenTypes,
+        returnSeatTypes: chosenReturnTypes,
+        seatSurchargeTotal: surcharge,
+        totalPrice: finalTotal,
+        extraBaggageKg,
+        pointsUsed,
+        pointsEarned: Math.floor(finalTotal / 1000000),
+        paymentMethod: "qr"
+      });
+
+      if (pendingRes && pendingRes.bookingRef) {
+        bookingRef = pendingRes.bookingRef;
+      }
+    } catch (err) {
+      console.error("Pre-checkout booking creation failed:", err);
+      alert("Không khởi tạo được đơn đặt vé. Vui lòng thử lại!");
+      return;
+    }
+
     localStorage.setItem(
       "tempBooking",
       JSON.stringify({
+        bookingRef: bookingRef,
         flight: selectedFlight,
+        returnFlight: selectedReturnFlight,
         ticketClasses: passengerClasses,
+        returnTicketClasses: selectedReturnFlight ? passengerClasses : undefined,
         passengers: finalizedPassForms,
         passengerCounts: {
           adults: adultPassengers,
@@ -1030,10 +1272,14 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
         },
         seatNumbers: chosenSeats,
         seatTypes: chosenTypes,
+        returnSeatNumbers: chosenReturnSeats,
+        returnSeatTypes: chosenReturnTypes,
         basePrices,
+        returnBasePrices,
         seatSurchargeTotal: surcharge,
-      totalPrice: finalTotal,
+        totalPrice: finalTotal,
         usedSeatSelection,
+        usedReturnSeatSelection,
         extraBaggageKg,
         pointsUsed,
       }),
@@ -1309,37 +1555,15 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                           ? "No separate seat"
                           : `Seat: ${chosenSeats[idx] || "Auto"}`}
                         {passForms[idx]?.passengerType !== "infant" &&
-                        usedSeatSelection &&
-                        chosenTypes[idx]
+                          usedSeatSelection &&
+                          chosenTypes[idx]
                           ? ` (${SEAT_TYPE_INFO[chosenTypes[idx]].label})`
                           : ""}
                       </Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-5 bg-white space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                      <div className="space-y-1">
-                        <Label>
-                          Title <span className="text-red-500">*</span>
-                        </Label>
-                        <Select
-                          value={passForms[idx]?.title ?? "Mr"}
-                          onValueChange={(v) =>
-                            updatePassenger(idx, "title", v)
-                          }
-                        >
-                          <SelectTrigger className="h-10">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {["Mr", "Mrs", "Ms", "Dr", "Prof"].map((t) => (
-                              <SelectItem key={t} value={t}>
-                                {t}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="space-y-1">
                         <Label>
                           Gender <span className="text-red-500">*</span>
@@ -1667,19 +1891,29 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
   // SUMMARY & BAGGAGE VIEW
   // ════════════════════════════════════════════════
   if (view === "summary") {
-    const surcharge = chosenTypes.reduce(
-  (s, t, i) =>
-    s + (usedSeatSelection && chosenSeats[i] ? SEAT_SURCHARGE[t] : 0),
-  0,
-);
-const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 30000, 0);
-const totalWithoutDiscount =
-  basePrices.reduce((a, b) => a + b, 0) + surcharge + baggageTotal;
+    const outboundSurcharge = chosenTypes.reduce(
+      (s, t, i) =>
+        s + (usedSeatSelection && chosenSeats[i] ? SEAT_SURCHARGE[t] : 0),
+      0,
+    );
+    const inboundSurcharge = chosenReturnTypes.reduce(
+      (s, t, i) =>
+        s + (usedReturnSeatSelection && chosenReturnSeats[i] ? SEAT_SURCHARGE[t] : 0),
+      0,
+    );
+    const surcharge = outboundSurcharge + inboundSurcharge;
 
-const maxPointsUsable = Math.min(pointsBalance, totalWithoutDiscount);
-const parsedPointsToUse = Number(pointsToUseInput || 0);
-const pointsUsed = Math.max(0, Math.min(parsedPointsToUse, maxPointsUsable));
-const finalTotal = totalWithoutDiscount - pointsUsed;
+    const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 40000, 0);
+    const totalWithoutDiscount =
+      basePrices.reduce((a, b) => a + b, 0) +
+      (selectedReturnFlight ? returnBasePrices.reduce((a, b) => a + b, 0) : 0) +
+      surcharge +
+      baggageTotal;
+
+    const maxPointsUsable = Math.min(pointsBalance, totalWithoutDiscount);
+    const parsedPointsToUse = Number(pointsToUseInput || 0);
+    const pointsUsed = Math.max(0, Math.min(parsedPointsToUse, maxPointsUsable));
+    const finalTotal = totalWithoutDiscount - pointsUsed;
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300 max-w-4xl mx-auto">
@@ -1702,7 +1936,8 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
               variant="outline"
               className="bg-[#eef3f9] border-[#c3d4e8] text-[#1a3557]"
             >
-              {selectedFlight?.departure.code} → {selectedFlight?.arrival.code}
+              {selectedFlight?.departure.code} {selectedReturnFlight ? "⇄" : "→"}{" "}
+              {selectedFlight?.arrival.code}
             </Badge>
           </div>
           <CardContent className="p-0 divide-y">
@@ -1726,12 +1961,14 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                     {passForms[i]?.passengerType === "infant" && "Infant (30%)"}
                   </span>
                   <div className="text-sm text-gray-600">
-                    Fare: {formatVND(basePrices[i] || 0)} VND
+                    Fare: {formatVND((basePrices[i] || 0) + (selectedReturnFlight ? (returnBasePrices[i] || 0) : 0))} VND
                   </div>
                   <div className="flex gap-3 mt-2 text-sm text-gray-600">
                     <span className="flex items-center gap-1 bg-white border border-gray-200 px-2 py-0.5 rounded text-xs font-semibold shadow-sm">
                       {p.passengerType === "infant"
                         ? "No separate seat"
+                        : selectedReturnFlight
+                        ? `Seat ${chosenSeats[i] || "Auto"} / Return: ${chosenReturnSeats[i] || "Auto"}`
                         : `Seat ${chosenSeats[i] || "Auto"}`}
                     </span>
                     <span className="text-xs text-gray-500 flex items-center gap-1 px-2 py-0.5">
@@ -1744,6 +1981,7 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                   <p className="text-[10px] font-bold text-[#1a3557] uppercase tracking-widest">
                     Extra Checked Baggage
                   </p>
+                  <span className="text-[9px] text-gray-500 font-normal normal-case -mt-1 block">(additional checked baggage kilograms to purchase)</span>
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
@@ -1781,7 +2019,7 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                   </div>
                   {extraBaggageKg[i] > 0 && (
                     <p className="text-[11px] font-bold text-[#1e4069]">
-                      +{formatVND(extraBaggageKg[i] * 30000)} VND
+                      +{formatVND(extraBaggageKg[i] * 40000)} VND
                     </p>
                   )}
                 </div>
@@ -1791,52 +2029,52 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
         </Card>
 
         {/* Point reward */}
-   <Card className="border border-yellow-200 bg-gradient-to-r from-yellow-50 to-amber-50/30 overflow-hidden relative">
-  <div className="absolute top-0 right-0 p-4 opacity-10 text-4xl">💎</div>
-  <CardContent className="p-6 space-y-4">
-    <div>
-      <h3 className="text-xl font-bold text-yellow-800 flex items-center gap-2">
-        Point reward
-      </h3>
-      <p className="text-sm text-yellow-700 mt-1">
-        Available points:{" "}
-        <strong className="font-bold">{formatVND(pointsBalance)}</strong>
-      </p>
-      <p className="text-[10px] text-yellow-600/80 mt-1 font-bold">
-        1 point = 1 VND discount.
-      </p>
-    </div>
+        <Card className="border border-yellow-200 bg-gradient-to-r from-yellow-50 to-amber-50/30 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10 text-4xl">💎</div>
+          <CardContent className="p-6 space-y-4">
+            <div>
+              <h3 className="text-xl font-bold text-yellow-800 flex items-center gap-2">
+                Point reward
+              </h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                Available points:{" "}
+                <strong className="font-bold">{formatVND(pointsBalance)}</strong>
+              </p>
+              <p className="text-[10px] text-yellow-600/80 mt-1 font-bold">
+                1 point = 1 VND discount.
+              </p>
+            </div>
 
-    <div className="space-y-2">
-      <Label className="text-yellow-900 font-medium">Points to use</Label>
-      <Input
-        type="text"
-        inputMode="numeric"
-        placeholder="Enter points to use"
-        value={pointsToUseInput}
-        onChange={(e) => handlePointsInputChange(e.target.value)}
-        className="bg-white"
-      />
-      <div className="flex justify-between text-xs text-yellow-700">
-        <span>Max usable</span>
-        <span>{formatVND(maxPointsUsable)}</span>
-      </div>
+            <div className="space-y-2">
+              <Label className="text-yellow-900 font-medium">Points to use</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="Enter points to use"
+                value={pointsToUseInput}
+                onChange={(e) => handlePointsInputChange(e.target.value)}
+                className="bg-white"
+              />
+              <div className="flex justify-between text-xs text-yellow-700">
+                <span>Max usable</span>
+                <span>{formatVND(maxPointsUsable)}</span>
+              </div>
 
-      {Number(pointsToUseInput || 0) > maxPointsUsable && (
-        <p className="text-xs text-red-600">
-          Entered points exceed the allowed limit. The system will use the maximum valid amount only.
-        </p>
-      )}
-    </div>
+              {Number(pointsToUseInput || 0) > maxPointsUsable && (
+                <p className="text-xs text-red-600">
+                  Entered points exceed the allowed limit. The system will use the maximum valid amount only.
+                </p>
+              )}
+            </div>
 
-    <div className="mt-4 p-3 bg-white/60 rounded-xl border border-yellow-200 text-sm font-medium text-yellow-900 flex justify-between">
-      <span>Applied discount</span>
-      <span className="font-bold text-red-600">
-        -{formatVND(pointsUsed)} VND
-      </span>
-    </div>
-  </CardContent>
-</Card>
+            <div className="mt-4 p-3 bg-white/60 rounded-xl border border-yellow-200 text-sm font-medium text-yellow-900 flex justify-between">
+              <span>Applied discount</span>
+              <span className="font-bold text-red-600">
+                -{formatVND(pointsUsed)} VND
+              </span>
+            </div>
+          </CardContent>
+        </Card>
         <Card className="border-0 shadow-xl overflow-hidden bg-[#1a3557]">
           <CardContent className="p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-6">
             <div className="space-y-1">
@@ -1845,11 +2083,11 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                 <p className="text-3xl font-black">{formatVND(finalTotal)}</p>
                 <p className="text-sm text-white/50">VND</p>
               </div>
-             {pointsUsed > 0 && (
-  <p className="text-xs text-yellow-300">
-    {formatVND(pointsUsed)} points used
-  </p>
-)}
+              {pointsUsed > 0 && (
+                <p className="text-xs text-yellow-300">
+                  {formatVND(pointsUsed)} points used
+                </p>
+              )}
             </div>
 
             <Button
@@ -1901,172 +2139,239 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                   onValueChange={setTripType}
                   className="w-full"
                 >
-                  <TabsList className="mb-6 grid h-12 w-full max-w-[360px] grid-cols-2 rounded-2xl bg-slate-100 p-1">
-                    <TabsTrigger
-                      value="roundtrip"
-                      className="rounded-xl text-sm font-medium"
-                    >
-                      Round Trip
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="oneway"
-                      className="rounded-xl text-sm font-medium"
-                    >
-                      One Way
-                    </TabsTrigger>
-                  </TabsList>
+                  <div className="flex flex-wrap items-center gap-4 mb-6">
+                    <TabsList className="grid h-12 w-full max-w-[360px] grid-cols-2 rounded-2xl bg-slate-100 p-1 mb-0">
+                      <TabsTrigger
+                        value="roundtrip"
+                        className="rounded-xl text-sm font-medium"
+                      >
+                        Round Trip
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="oneway"
+                        className="rounded-xl text-sm font-medium"
+                      >
+                        One Way
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-12 w-full sm:w-56 justify-between rounded-xl bg-white border border-gray-200 text-left px-3 font-normal hover:bg-white text-gray-800"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-gray-500 shrink-0" />
+                            <span className="truncate">
+                              {passCount} Passenger{passCount > 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-4 bg-white border border-gray-200 rounded-xl shadow-lg z-50" align="start">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">Adults</p>
+                              <p className="text-xs text-gray-400">Age 12+</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={adultCount <= 1 || adultCount <= infantCount}
+                                onClick={() => decrementPassenger("adult")}
+                              >
+                                -
+                              </Button>
+                              <span className="w-4 text-center text-sm font-bold">{adultCount}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={adultCount + childCount + infantCount >= 10}
+                                onClick={() => incrementPassenger("adult")}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">Children</p>
+                              <p className="text-xs text-gray-400">Age 2-11</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={childCount <= 0}
+                                onClick={() => decrementPassenger("child")}
+                              >
+                                -
+                              </Button>
+                              <span className="w-4 text-center text-sm font-bold">{childCount}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={adultCount + childCount + infantCount >= 10}
+                                onClick={() => incrementPassenger("child")}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">Infants</p>
+                              <p className="text-xs text-gray-400">Under 2</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={infantCount <= 0}
+                                onClick={() => decrementPassenger("infant")}
+                              >
+                                -
+                              </Button>
+                              <span className="w-4 text-center text-sm font-bold">{infantCount}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full border-gray-200"
+                                disabled={adultCount + childCount + infantCount >= 10 || infantCount >= adultCount}
+                                onClick={() => incrementPassenger("infant")}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="border-t border-gray-100 pt-2 space-y-1">
+                            <p className="text-[10px] text-gray-400">
+                              • Max 10 passengers total per booking.
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              • Number of infants cannot exceed adults.
+                            </p>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <TabsContent value={tripType} className="mt-0">
-                    <div className="grid grid-cols-12 items-start gap-4">
-                      <div className="col-span-12 md:col-span-3">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Plane className="h-4 w-4" />
-                          From
-                        </Label>
-                        <Select value={from} onValueChange={setFrom}>
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue placeholder="Select airport" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AIRPORTS.map((a) => (
-                              <SelectItem key={a.code} value={a.code}>
-                                {a.city} ({a.code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-12 md:col-span-1 md:pt-7">
-                        <div className="flex h-12 items-center justify-center">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-12 w-12 rounded-full bg-white"
-                            onClick={swapAirports}
-                          >
-                            <ArrowRightLeft className="h-4 w-4" />
-                          </Button>
+                    <div className="flex flex-col gap-4">
+                      {/* Inputs Row */}
+                      <div className="flex flex-col md:flex-row items-end justify-between gap-4 w-full">
+                        {/* Left Group: From, Swap, To */}
+                        <div className="w-full md:w-[52%] flex items-end gap-3 min-w-0">
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <Label className="mb-2 flex items-center gap-2">
+                              <Plane className="h-4 w-4 shrink-0" />
+                              <span className="truncate">From</span>
+                            </Label>
+                            <Select value={from} onValueChange={setFrom}>
+                              <SelectTrigger className="h-12 data-[size=default]:h-12 w-full min-w-0 rounded-xl bg-white">
+                                <SelectValue placeholder="Select airport" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AIRPORTS.map((a) => (
+                                  <SelectItem key={a.code} value={a.code}>
+                                    {a.city} ({a.code})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex justify-center items-end min-w-0 shrink-0 pb-0.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-12 w-12 rounded-full bg-white border border-gray-200 shrink-0"
+                              onClick={swapAirports}
+                            >
+                              <ArrowRightLeft className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <Label className="mb-2 flex items-center gap-2">
+                              <Plane className="h-4 w-4 rotate-90 shrink-0" />
+                              <span className="truncate">To</span>
+                            </Label>
+                            <Select value={to} onValueChange={setTo}>
+                              <SelectTrigger className="h-12 data-[size=default]:h-12 w-full min-w-0 rounded-xl bg-white">
+                                <SelectValue placeholder="Select airport" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AIRPORTS.map((a) => (
+                                  <SelectItem key={a.code} value={a.code}>
+                                    {a.city} ({a.code})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        {/* Right Group: Depart, Return */}
+                        <div className="w-full md:w-[42%] flex items-end gap-3 min-w-0">
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <Label className="mb-2 flex items-center gap-2">
+                              <Calendar className="h-4 w-4 shrink-0" />
+                              <span className="truncate">Depart</span>
+                            </Label>
+                            <Input
+                              type="date"
+                              min={TODAY}
+                              value={departDate}
+                              onChange={(e) => {
+                                setDepartDate(e.target.value);
+                                if (returnDate && e.target.value > returnDate)
+                                  setReturnDate("");
+                              }}
+                              className="h-12 w-full min-w-0 rounded-xl bg-white"
+                            />
+                          </div>
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <Label className="mb-2 flex items-center gap-2">
+                              <Calendar className="h-4 w-4 shrink-0" />
+                              <span className="truncate">Return</span>
+                            </Label>
+                            <Input
+                              type="date"
+                              min={departDate || TODAY}
+                              value={returnDate}
+                              onChange={(e) => setReturnDate(e.target.value)}
+                              disabled={tripType === "oneway"}
+                              className="h-12 w-full min-w-0 rounded-xl bg-white"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="col-span-12 md:col-span-3">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Plane className="h-4 w-4 rotate-90" />
-                          To
-                        </Label>
-                        <Select value={to} onValueChange={setTo}>
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue placeholder="Select airport" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AIRPORTS.map((a) => (
-                              <SelectItem key={a.code} value={a.code}>
-                                {a.city} ({a.code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-12 md:col-span-2">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          Depart
-                        </Label>
-                        <Input
-                          type="date"
-                          min={TODAY}
-                          value={departDate}
-                          onChange={(e) => {
-                            setDepartDate(e.target.value);
-                            if (returnDate && e.target.value > returnDate)
-                              setReturnDate("");
-                          }}
-                          className="h-12 rounded-xl bg-white"
-                        />
-                      </div>
-                      <div className="col-span-12 md:col-span-2">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          Return
-                        </Label>
-                        <Input
-                          type="date"
-                          min={departDate || TODAY}
-                          value={returnDate}
-                          onChange={(e) => setReturnDate(e.target.value)}
-                          disabled={tripType === "oneway"}
-                          className="h-12 rounded-xl bg-white"
-                        />
-                      </div>
-                      <div className="col-span-12 md:col-span-1">
-                        <Label className="mb-2 flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          Adults
-                        </Label>
-                        <Select
-                          value={adultCount}
-                          onValueChange={setAdultCount}
-                        >
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[1, 2, 3, 4, 5].map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                {n}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
 
-                      <div className="col-span-12 md:col-span-1">
-                        <Label className="mb-2">Children (2-11)</Label>
-                        <Select
-                          value={childCount}
-                          onValueChange={setChildCount}
-                        >
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[0, 1, 2, 3, 4, 5].map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                {n}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="col-span-12 md:col-span-1">
-                        <Label className="mb-2">Infants (&lt;2)</Label>
-                        <Select
-                          value={infantCount}
-                          onValueChange={setInfantCount}
-                        >
-                          <SelectTrigger className="h-12 rounded-xl bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[0, 1, 2, 3, 4, 5].map((n) => (
-                              <SelectItem key={n} value={String(n)}>
-                                {n}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {infantPassengers > adultPassengers && (
-                          <p className="col-span-12 text-sm text-red-500">
-                            Number of infants must be less than or equal to
-                            number of adults.
-                          </p>
-                        )}
-                      </div>
-                      <div className="col-span-12 flex items-end pt-2">
+                      {/* Search Button Row */}
+                      <div className="w-full pt-1">
                         <Button
                           type="button"
                           onClick={handleSearch}
-                          className="h-12 w-full gap-2 rounded-xl text-base font-semibold bg-[#1a3557] hover:bg-[#1a3557]"
+                          className="h-12 w-full flex items-center justify-center gap-2 rounded-xl bg-[#1a3557] hover:bg-[#12263f] text-white text-base font-semibold transition-colors"
                           disabled={searchLoading}
                         >
                           <Search className="h-5 w-5" />
@@ -2087,181 +2392,382 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-800">
-              {filteredFlights.length > 0
-                ? `${filteredFlights.length} flight(s) found`
-                : "No flights found"}
+              {tripType === "roundtrip" ? (
+                roundFlights.length > 0
+                  ? `${roundFlights.length} round-trip combo(s) found`
+                  : "No flights found"
+              ) : (
+                filteredFlights.length > 0
+                  ? `${filteredFlights.length} flight(s) found`
+                  : "No flights found"
+              )}
             </h2>
-            {filteredFlights.length > 0 && (
+            {(tripType === "roundtrip" ? roundFlights.length > 0 : filteredFlights.length > 0) && (
               <p className="text-sm text-gray-500">{passCount} passenger(s)</p>
             )}
           </div>
 
-          {filteredFlights.length === 0 ? (
-            <Card className="p-10 text-center">
-              <Plane className="mx-auto mb-4 h-14 w-14 text-muted-foreground opacity-20" />
-              <p className="text-muted-foreground">
-                No flights match your search. Try leaving airports blank to see
-                all available flights.
-              </p>
-            </Card>
-          ) : (
-            filteredFlights.map((flight) => {
-              const econPrice = flight.price.economy ?? 0;
-              const busPrice = flight.price.business ?? 0;
-              const firstPrice = flight.price.firstClass ?? 0;
-              const econSold = flight.seatsAvailable.economy === 0;
-              const busSold = flight.seatsAvailable.business === 0;
-              const firstSold = flight.seatsAvailable.firstClass === 0;
+          {tripType === "roundtrip" ? (
+            roundFlights.length === 0 ? (
+              <Card className="p-10 text-center">
+                <Plane className="mx-auto mb-4 h-14 w-14 text-muted-foreground opacity-20" />
+                <p className="text-muted-foreground">
+                  No valid flights found for the selected dates.
+                </p>
+              </Card>
+            ) : (
+              roundFlights.map((combo, index) => {
+                const dep = combo.departure;
+                const arr = combo.arrival;
+                const econPrice = dep.price.economy + arr.price.economy;
+                const busPrice = dep.price.business + arr.price.business;
+                const firstPrice = dep.price.firstClass + arr.price.firstClass;
+                const econSold = dep.seatsAvailable.economy < seatPassengerCount || arr.seatsAvailable.economy < seatPassengerCount;
+                const busSold = dep.seatsAvailable.business < seatPassengerCount || arr.seatsAvailable.business < seatPassengerCount;
+                const firstSold = dep.seatsAvailable.firstClass < seatPassengerCount || arr.seatsAvailable.firstClass < seatPassengerCount;
 
-              const SoldOutCol = ({
-                label,
-                wide,
-              }: {
-                label: string;
-                wide?: boolean;
-              }) => (
-                <div
-                  className={`relative ${wide ? "w-full sm:w-44" : "w-full sm:w-40"} p-4 flex flex-col justify-center items-center bg-gray-100 border-t sm:border-t-0 sm:border-l border-gray-200 cursor-not-allowed`}
-                >
-                  <p className="text-xs font-bold text-gray-400 mb-2 text-center leading-tight">
-                    {label}
-                  </p>
-                  <div className="mt-1 px-4 py-1.5 bg-gray-300 rounded-lg">
-                    <p className="text-sm font-bold text-gray-500">SOLD OUT</p>
+                const SoldOutCol = ({
+                  label,
+                  wide,
+                }: {
+                  label: string;
+                  wide?: boolean;
+                }) => (
+                  <div
+                    className={`relative ${wide ? "w-full sm:w-44" : "w-full sm:w-40"} p-4 flex flex-col justify-center items-center bg-gray-100 border-t sm:border-t-0 sm:border-l border-gray-200 cursor-not-allowed`}
+                  >
+                    <p className="text-xs font-bold text-gray-400 mb-2 text-center leading-tight">
+                      {label}
+                    </p>
+                    <div className="mt-1 px-4 py-1.5 bg-gray-300 rounded-lg">
+                      <p className="text-sm font-bold text-gray-500">SOLD OUT</p>
+                    </div>
                   </div>
-                </div>
-              );
+                );
 
-              return (
-                <div
-                  key={flight.id}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col xl:flex-row hover:shadow-md transition-shadow"
-                >
-                  {/* Flight info */}
-                  <div className="p-6 flex-1 flex flex-col justify-center min-w-[300px]">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="text-center">
-                        <p className="text-3xl font-light text-[#1a3557]">
-                          {flight.departure.time}
-                        </p>
-                        <p className="text-sm font-bold text-gray-800 mt-1">
-                          {flight.departure.code}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {flight.departure.city}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-center flex-1 px-3">
-                        <p className="text-xs text-[#1e4069] font-medium mb-1">
-                          Direct flight
-                        </p>
-                        <div className="w-full flex items-center">
-                          <div className="h-px flex-1 border-t-2 border-dashed border-gray-200" />
-                          <Plane className="w-4 h-4 text-gray-300 mx-1" />
-                          <div className="h-px flex-1 border-t-2 border-dashed border-gray-200" />
+                return (
+                  <div
+                    key={`${dep.id}-${arr.id}-${index}`}
+                    className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col xl:flex-row hover:shadow-md transition-shadow"
+                  >
+                    {/* Flights Info */}
+                    <div className="flex-1 flex flex-col divide-y divide-gray-100">
+                      {/* Outbound Leg */}
+                      <div className="p-5 flex flex-col justify-center min-w-[300px]">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold tracking-widest text-[#1a3557] bg-[#eef3f9] px-2 py-0.5 rounded-full uppercase">
+                            Outbound
+                          </span>
+                          <span className="text-xs text-gray-400 font-mono">{dep.flightNumber}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-center">
+                            <p className="text-2xl font-light text-[#1a3557]">
+                              {dep.departure.time}
+                            </p>
+                            <p className="text-xs font-bold text-gray-800 mt-0.5">
+                              {dep.departure.code}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-center flex-1 px-3">
+                            <p className="text-[10px] text-[#1e4069] font-medium mb-0.5">
+                              {dep.duration}
+                            </p>
+                            <div className="w-full flex items-center">
+                              <div className="h-px flex-1 border-t border-dashed border-gray-200" />
+                              <Plane className="w-3.5 h-3.5 text-gray-300 mx-1" />
+                              <div className="h-px flex-1 border-t border-dashed border-gray-200" />
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-light text-[#1a3557]">
+                              {dep.arrival.time}
+                            </p>
+                            <p className="text-xs font-bold text-gray-800 mt-0.5">
+                              {dep.arrival.code}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-3xl font-light text-[#1a3557]">
-                          {flight.arrival.time}
-                        </p>
-                        <p className="text-sm font-bold text-gray-800 mt-1">
-                          {flight.arrival.code}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {flight.arrival.city}
-                        </p>
+
+                      {/* Return Leg */}
+                      <div className="p-5 flex flex-col justify-center min-w-[300px] bg-gray-50/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold tracking-widest text-[#f07832] bg-orange-50/70 px-2 py-0.5 rounded-full uppercase">
+                            Return
+                          </span>
+                          <span className="text-xs text-gray-400 font-mono">{arr.flightNumber}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-center">
+                            <p className="text-2xl font-light text-[#1a3557]">
+                              {arr.departure.time}
+                            </p>
+                            <p className="text-xs font-bold text-gray-800 mt-0.5">
+                              {arr.departure.code}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-center flex-1 px-3">
+                            <p className="text-[10px] text-[#1e4069] font-medium mb-0.5">
+                              {arr.duration}
+                            </p>
+                            <div className="w-full flex items-center">
+                              <div className="h-px flex-1 border-t border-dashed border-gray-200" />
+                              <Plane className="w-3.5 h-3.5 text-gray-300 mx-1 rotate-180" />
+                              <div className="h-px flex-1 border-t border-dashed border-gray-200" />
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-light text-[#1a3557]">
+                              {arr.arrival.time}
+                            </p>
+                            <p className="text-xs font-bold text-gray-800 mt-0.5">
+                              {arr.arrival.code}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Flight time:{" "}
-                        {flight.duration}
-                      </span>
-                      <span className="flex items-center gap-1 font-medium text-gray-700">
-                        <span className="text-yellow-500">🪷</span>
-                      </span>
-                      {flight.discount && (
-                        <Badge
-                          variant="destructive"
-                          className="mt-1 text-[10px]"
+
+                    {/* Ticket class columns */}
+                    <div className="flex flex-col sm:flex-row border-t xl:border-t-0 xl:border-l border-gray-200 shrink-0">
+                      {econSold ? (
+                        <SoldOutCol label="ECONOMY" />
+                      ) : (
+                        <div
+                          onClick={() => openDialog(dep, "economy", arr)}
+                          className="relative w-full sm:w-40 p-4 flex flex-col justify-center items-center bg-[#1a3557] text-white hover:bg-[#12263f] cursor-pointer transition-all hover:scale-[1.02]"
                         >
-                          {flight.discount}% OFF
-                        </Badge>
+                          <p className="text-sm font-bold mb-1">ECONOMY</p>
+                          <p className="text-[10px] opacity-75">combo total</p>
+                          <p className="text-base font-bold">
+                            {formatVND(econPrice)}
+                          </p>
+                          <p className="text-[10px] opacity-75">VND</p>
+                          <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
+                        </div>
+                      )}
+                      {busSold ? (
+                        <SoldOutCol label="PREMIUM ECONOMY" wide />
+                      ) : (
+                        <div
+                          onClick={() => openDialog(dep, "business", arr)}
+                          className="relative w-full sm:w-44 p-4 flex flex-col justify-center items-center bg-[#f07832] text-white hover:bg-[#d86622] cursor-pointer transition-all hover:scale-[1.02] border-t sm:border-t-0 sm:border-l border-white/20"
+                        >
+                          {Math.min(dep.seatsAvailable.business, arr.seatsAvailable.business) <= 6 && (
+                            <span className="block text-center bg-orange-900/60 text-white text-[10px] px-2 py-0.5 rounded-full mb-1 whitespace-nowrap">
+                              {Math.min(dep.seatsAvailable.business, arr.seatsAvailable.business)} seats left
+                            </span>
+                          )}
+                          <p className="text-sm font-bold mb-1 text-center leading-tight">
+                            PREMIUM
+                            <br />
+                            ECONOMY
+                          </p>
+                          <p className="text-[10px] opacity-75">combo total</p>
+                          <p className="text-base font-bold">
+                            {formatVND(busPrice)}
+                          </p>
+                          <p className="text-[10px] opacity-75">VND</p>
+                          <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
+                        </div>
+                      )}
+                      {firstSold ? (
+                        <SoldOutCol label="BUSINESS" />
+                      ) : (
+                        <div
+                          onClick={() => openDialog(dep, "firstClass", arr)}
+                          className="relative w-full sm:w-40 p-4 flex flex-col justify-center items-center bg-[#f5d020] text-gray-900 hover:bg-[#dfbd10] cursor-pointer transition-all hover:scale-[1.02] border-t sm:border-t-0 sm:border-l border-white/20"
+                        >
+                          {Math.min(dep.seatsAvailable.firstClass, arr.seatsAvailable.firstClass) <= 4 && (
+                            <span className="block text-center bg-yellow-900/40 text-gray-900 text-[10px] px-2 py-0.5 rounded-full mb-1 whitespace-nowrap">
+                              {Math.min(dep.seatsAvailable.firstClass, arr.seatsAvailable.firstClass)} seats left
+                            </span>
+                          )}
+                          <p className="text-sm font-bold mb-1 text-center">
+                            BUSINESS
+                          </p>
+                          <p className="text-[10px] opacity-75">combo total</p>
+                          <p className="text-base font-bold">
+                            {formatVND(firstPrice)}
+                          </p>
+                          <p className="text-[10px] opacity-75">VND</p>
+                          <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
+                        </div>
                       )}
                     </div>
                   </div>
+                );
+              })
+            )
+          ) : (
+            filteredFlights.length === 0 ? (
+              <Card className="p-10 text-center">
+                <Plane className="mx-auto mb-4 h-14 w-14 text-muted-foreground opacity-20" />
+                <p className="text-muted-foreground">
+                  No flights match your search. Try leaving airports blank to see
+                  all available flights.
+                </p>
+              </Card>
+            ) : (
+              filteredFlights.map((flight) => {
+                const econPrice = flight.price.economy ?? 0;
+                const busPrice = flight.price.business ?? 0;
+                const firstPrice = flight.price.firstClass ?? 0;
+                const econSold = flight.seatsAvailable.economy < seatPassengerCount;
+                const busSold = flight.seatsAvailable.business < seatPassengerCount;
+                const firstSold = flight.seatsAvailable.firstClass < seatPassengerCount;
 
-                  {/* Ticket class columns */}
-                  <div className="flex flex-col sm:flex-row border-t xl:border-t-0 xl:border-l border-gray-200">
-                    {econSold ? (
-                      <SoldOutCol label="ECONOMY" />
-                    ) : (
-                      <div
-                        onClick={() => openDialog(flight, "economy")}
-                        className="relative w-full sm:w-40 p-4 flex flex-col justify-center items-center bg-[#1a3557] text-white hover:bg-[#1a3557] cursor-pointer transition-all hover:scale-[1.02]"
-                      >
-                        <p className="text-sm font-bold mb-1">ECONOMY</p>
-                        <p className="text-[10px] opacity-75">from</p>
-                        <p className="text-base font-bold">
-                          {formatVND(econPrice)}
-                        </p>
-                        <p className="text-[10px] opacity-75">VND</p>
-                        <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
-                      </div>
-                    )}
-                    {busSold ? (
-                      <SoldOutCol label="PREMIUM ECONOMY" wide />
-                    ) : (
-                      <div
-                        onClick={() => openDialog(flight, "business")}
-                        className="relative w-full sm:w-44 p-4 flex flex-col justify-center items-center bg-[#f07832] text-white hover:bg-[#e0681e] cursor-pointer transition-all hover:scale-[1.02] border-t sm:border-t-0 sm:border-l border-white/20"
-                      >
-                        {flight.seatsAvailable.business <= 6 && (
-                          <span className="block text-center bg-orange-900/60 text-white text-[10px] px-2 py-0.5 rounded-full mb-1 whitespace-nowrap">
-                            {flight.seatsAvailable.business} seats left
-                          </span>
-                        )}
-                        <p className="text-sm font-bold mb-1 text-center leading-tight">
-                          PREMIUM
-                          <br />
-                          ECONOMY
-                        </p>
-                        <p className="text-[10px] opacity-75">from</p>
-                        <p className="text-base font-bold">
-                          {formatVND(busPrice)}
-                        </p>
-                        <p className="text-[10px] opacity-75">VND</p>
-                        <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
-                      </div>
-                    )}
-                    {firstSold ? (
-                      <SoldOutCol label="BUSINESS" />
-                    ) : (
-                      <div
-                        onClick={() => openDialog(flight, "firstClass")}
-                        className="relative w-full sm:w-40 p-4 flex flex-col justify-center items-center bg-[#f5d020] text-gray-900 hover:bg-[#e5c010] cursor-pointer transition-all hover:scale-[1.02] border-t sm:border-t-0 sm:border-l border-white/20"
-                      >
-                        {flight.seatsAvailable.firstClass <= 4 && (
-                          <span className="block text-center bg-yellow-900/40 text-gray-900 text-[10px] px-2 py-0.5 rounded-full mb-1 whitespace-nowrap">
-                            {flight.seatsAvailable.firstClass} seats left
-                          </span>
-                        )}
-                        <p className="text-sm font-bold mb-1 text-center">
-                          BUSINESS
-                        </p>
-                        <p className="text-[10px] opacity-75">from</p>
-                        <p className="text-base font-bold">
-                          {formatVND(firstPrice)}
-                        </p>
-                        <p className="text-[10px] opacity-75">VND</p>
-                        <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
-                      </div>
-                    )}
+                const SoldOutCol = ({
+                  label,
+                  wide,
+                }: {
+                  label: string;
+                  wide?: boolean;
+                }) => (
+                  <div
+                    className={`relative ${wide ? "w-full sm:w-44" : "w-full sm:w-40"} p-4 flex flex-col justify-center items-center bg-gray-100 border-t sm:border-t-0 sm:border-l border-gray-200 cursor-not-allowed`}
+                  >
+                    <p className="text-xs font-bold text-gray-400 mb-2 text-center leading-tight">
+                      {label}
+                    </p>
+                    <div className="mt-1 px-4 py-1.5 bg-gray-300 rounded-lg">
+                      <p className="text-sm font-bold text-gray-500">SOLD OUT</p>
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+
+                return (
+                  <div
+                    key={flight.id}
+                    className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col xl:flex-row hover:shadow-md transition-shadow"
+                  >
+                    {/* Flight info */}
+                    <div className="p-6 flex-1 flex flex-col justify-center min-w-[300px]">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="text-center">
+                          <p className="text-3xl font-light text-[#1a3557]">
+                            {flight.departure.time}
+                          </p>
+                          <p className="text-sm font-bold text-gray-800 mt-1">
+                            {flight.departure.code}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {flight.departure.city}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-center flex-1 px-3">
+                          <p className="text-xs text-[#1e4069] font-medium mb-1">
+                            Direct flight
+                          </p>
+                          <div className="w-full flex items-center">
+                            <div className="h-px flex-1 border-t-2 border-dashed border-gray-200" />
+                            <Plane className="w-4 h-4 text-gray-300 mx-1" />
+                            <div className="h-px flex-1 border-t-2 border-dashed border-gray-200" />
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-3xl font-light text-[#1a3557]">
+                            {flight.arrival.time}
+                          </p>
+                          <p className="text-sm font-bold text-gray-800 mt-1">
+                            {flight.arrival.code}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {flight.arrival.city}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> Flight time:{" "}
+                          {flight.duration}
+                        </span>
+                        <span className="flex items-center gap-1 font-medium text-gray-700">
+                          <span className="text-yellow-500">🪷</span>
+                        </span>
+                        {flight.discount && (
+                          <Badge
+                            variant="destructive"
+                            className="mt-1 text-[10px]"
+                          >
+                            {flight.discount}% OFF
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ticket class columns */}
+                    <div className="flex flex-col sm:flex-row border-t xl:border-t-0 xl:border-l border-gray-200">
+                      {econSold ? (
+                        <SoldOutCol label="ECONOMY" />
+                      ) : (
+                        <div
+                          onClick={() => openDialog(flight, "economy")}
+                          className="relative w-full sm:w-40 p-4 flex flex-col justify-center items-center bg-[#1a3557] text-white hover:bg-[#1a3557] cursor-pointer transition-all hover:scale-[1.02]"
+                        >
+                          <p className="text-sm font-bold mb-1">ECONOMY</p>
+                          <p className="text-[10px] opacity-75">from</p>
+                          <p className="text-base font-bold">
+                            {formatVND(econPrice)}
+                          </p>
+                          <p className="text-[10px] opacity-75">VND</p>
+                          <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
+                        </div>
+                      )}
+                      {busSold ? (
+                        <SoldOutCol label="PREMIUM ECONOMY" wide />
+                      ) : (
+                        <div
+                          onClick={() => openDialog(flight, "business")}
+                          className="relative w-full sm:w-44 p-4 flex flex-col justify-center items-center bg-[#f07832] text-white hover:bg-[#e0681e] cursor-pointer transition-all hover:scale-[1.02] border-t sm:border-t-0 sm:border-l border-white/20"
+                        >
+                          {flight.seatsAvailable.business <= 6 && (
+                            <span className="block text-center bg-orange-900/60 text-white text-[10px] px-2 py-0.5 rounded-full mb-1 whitespace-nowrap">
+                              {flight.seatsAvailable.business} seats left
+                            </span>
+                          )}
+                          <p className="text-sm font-bold mb-1 text-center leading-tight">
+                            PREMIUM
+                            <br />
+                            ECONOMY
+                          </p>
+                          <p className="text-[10px] opacity-75">from</p>
+                          <p className="text-base font-bold">
+                            {formatVND(busPrice)}
+                          </p>
+                          <p className="text-[10px] opacity-75">VND</p>
+                          <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
+                        </div>
+                      )}
+                      {firstSold ? (
+                        <SoldOutCol label="BUSINESS" />
+                      ) : (
+                        <div
+                          onClick={() => openDialog(flight, "firstClass")}
+                          className="relative w-full sm:w-40 p-4 flex flex-col justify-center items-center bg-[#f5d020] text-gray-900 hover:bg-[#e5c010] cursor-pointer transition-all hover:scale-[1.02] border-t sm:border-t-0 sm:border-l border-white/20"
+                        >
+                          {flight.seatsAvailable.firstClass <= 4 && (
+                            <span className="block text-center bg-yellow-900/40 text-gray-900 text-[10px] px-2 py-0.5 rounded-full mb-1 whitespace-nowrap">
+                              {flight.seatsAvailable.firstClass} seats left
+                            </span>
+                          )}
+                          <p className="text-sm font-bold mb-1 text-center">
+                            BUSINESS
+                          </p>
+                          <p className="text-[10px] opacity-75">from</p>
+                          <p className="text-base font-bold">
+                            {formatVND(firstPrice)}
+                          </p>
+                          <p className="text-[10px] opacity-75">VND</p>
+                          <ChevronDown className="w-4 h-4 mt-1 opacity-60" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )
           )}
         </div>
       )}
@@ -2272,6 +2778,8 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
           <DialogContent
             className={`${seatMapMode ? "max-w-xl" : "max-w-md"} bg-white backdrop-blur-sm border-gray-200 p-0 overflow-hidden [&>button]:hidden`}
           >
+            <DialogTitle className="sr-only">Configure Flight Booking</DialogTitle>
+            <DialogDescription className="sr-only">Choose ticket class and passenger seat options for the selected flight</DialogDescription>
             {/* Detail view */}
             {!seatMapMode && (
               <div className="p-7 relative">
@@ -2283,16 +2791,22 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                 </button>
                 <div className="space-y-4 mt-2">
                   <div className="text-center border-b border-[#c3d4e8] pb-4">
-                    <p className="text-gray-500 text-sm mb-1">Route</p>
-                    <p className="font-bold text-3xl text-[#0b5c66] tracking-tight">
-                      {selectedFlight.departure.code} –{" "}
+                    <p className="text-gray-500 text-sm mb-1">{selectedReturnFlight ? "Outbound & Return Routes" : "Route"}</p>
+                    <p className="font-bold text-2xl text-[#0b5c66] tracking-tight">
+                      {selectedFlight.departure.code} {selectedReturnFlight ? "⇄" : "–"}{" "}
                       {selectedFlight.arrival.code}
                     </p>
                   </div>
                   <div className="flex items-center">
-                    <span className="text-gray-500 text-sm">Flight time:</span>
-                    <span className="ml-auto font-bold text-gray-800">
-                      {selectedFlight.duration}
+                    <span className="text-gray-500 text-sm">Flight times:</span>
+                    <span className="ml-auto font-bold text-gray-800 text-xs text-right">
+                      {selectedFlight.flightNumber} ({selectedFlight.duration})
+                      {selectedReturnFlight && (
+                        <>
+                          <br />
+                          {selectedReturnFlight.flightNumber} ({selectedReturnFlight.duration})
+                        </>
+                      )}
                     </span>
                   </div>
                   <div className="relative pl-5 border-l-2 border-gray-300 space-y-5 py-1 ml-1">
@@ -2326,7 +2840,7 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                   <div className="text-center border-t border-gray-200 pt-4">
                     <p className="text-gray-500 text-sm mb-1">Flight no.</p>
                     <p className="font-bold text-xl text-[#1a3557] tracking-wider">
-                      {selectedFlight.flightNumber}
+                      {selectedFlight.flightNumber} {selectedReturnFlight && ` & ${selectedReturnFlight.flightNumber}`}
                     </p>
                   </div>
                   <div
@@ -2338,8 +2852,10 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                     <span className="font-bold text-xs text-right">
                       Default Base Fare
                       <br />
-                      {formatVND(selectedFlight.price[selectedClass] ?? 0)} VND
-                      / person VND / person
+                      {formatVND(
+                        (selectedFlight.price[selectedClass] ?? 0) +
+                        (selectedReturnFlight ? (selectedReturnFlight.price[selectedClass] ?? 0) : 0)
+                      )} VND / person
                     </span>
                   </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex gap-2 text-xs text-amber-800">
@@ -2390,8 +2906,9 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                       Configure Passengers
                     </h3>
                     <p className="text-xs text-gray-500">
-                      {selectedFlight.departure.code}→
-                      {selectedFlight.arrival.code} · {passCount} passenger(s)
+                      {selectedFlight.departure.code}→{selectedFlight.arrival.code}
+                      {selectedReturnFlight && ` & ${selectedReturnFlight.departure.code}→${selectedReturnFlight.arrival.code}`}
+                      {" "}· {passCount} passenger(s)
                     </p>
                   </div>
                 </div>
@@ -2407,8 +2924,8 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                           Passenger {i + 1}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1">
+                      <div className="flex flex-col gap-3">
+                        <div>
                           <Label className="text-[10px] text-gray-500 uppercase">
                             Ticket Class
                           </Label>
@@ -2425,6 +2942,14 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                                 const nextTypes = [...chosenTypes];
                                 nextTypes[i] = "window" as SeatType;
                                 setChosenTypes(nextTypes);
+                              }
+                              if (chosenReturnSeats[i]) {
+                                const nextReturnSeats = [...chosenReturnSeats];
+                                nextReturnSeats[i] = "";
+                                setChosenReturnSeats(nextReturnSeats);
+                                const nextReturnTypes = [...chosenReturnTypes];
+                                nextReturnTypes[i] = "window" as SeatType;
+                                setChosenReturnTypes(nextReturnTypes);
                               }
                             }}
                           >
@@ -2443,7 +2968,8 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                                   key={c}
                                   value={c}
                                   disabled={
-                                    selectedFlight.seatsAvailable[c] === 0
+                                    selectedFlight.seatsAvailable[c] === 0 ||
+                                    selectedReturnFlight?.seatsAvailable[c] === 0
                                   }
                                 >
                                   {CLASS_LABELS[c]}
@@ -2452,17 +2978,39 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="flex-1">
-                          <Label className="text-[10px] text-gray-500 uppercase">
-                            Seat
-                          </Label>
-                          <Button
-                            variant={chosenSeats[i] ? "default" : "outline"}
-                            className={`w-full mt-1 h-9 ${chosenSeats[i] ? "bg-[#1a3557] hover:bg-[#1a3557] text-white" : ""}`}
-                            onClick={() => setActivePassengerIndex(i)}
-                          >
-                            {chosenSeats[i] || "Choose Seat"}
-                          </Button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-[10px] text-gray-500 uppercase">
+                              {selectedReturnFlight ? "Outbound Seat" : "Seat"}
+                            </Label>
+                            <Button
+                              variant={chosenSeats[i] ? "default" : "outline"}
+                              className={`w-full mt-1 h-9 ${chosenSeats[i] ? "bg-[#1a3557] hover:bg-[#1a3557] text-white" : ""}`}
+                              onClick={() => {
+                                setSeatMapStep("outbound");
+                                setActivePassengerIndex(i);
+                              }}
+                            >
+                              {chosenSeats[i] || "Choose Seat"}
+                            </Button>
+                          </div>
+                          {selectedReturnFlight && (
+                            <div>
+                              <Label className="text-[10px] text-gray-500 uppercase">
+                                Return Seat
+                              </Label>
+                              <Button
+                                variant={chosenReturnSeats[i] ? "default" : "outline"}
+                                className={`w-full mt-1 h-9 ${chosenReturnSeats[i] ? "bg-[#f07832] hover:bg-[#f07832] text-white" : ""}`}
+                                onClick={() => {
+                                  setSeatMapStep("return");
+                                  setActivePassengerIndex(i);
+                                }}
+                              >
+                                {chosenReturnSeats[i] || "Choose Seat"}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex justify-between items-center bg-[#eef3f9] p-2 rounded-lg mt-2">
@@ -2470,7 +3018,10 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                           Base Fare
                         </span>
                         <span className="font-bold text-[#1a3557]">
-                          {formatVND(selectedFlight.price[selectedClass] ?? 0)}{" "}
+                          {formatVND(
+                            (selectedFlight.price[passengerClasses[i] || selectedClass] ?? 0) +
+                            (selectedReturnFlight ? (selectedReturnFlight.price[passengerClasses[i] || selectedClass] ?? 0) : 0)
+                          )}{" "}
                           VND / person
                         </span>
                       </div>
@@ -2508,7 +3059,7 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                   </button>
                   <div>
                     <h3 className="font-bold text-gray-800">
-                      Passenger {activePassengerIndex + 1} Seat
+                      Passenger {activePassengerIndex + 1} Seat ({seatMapStep === "outbound" ? "Outbound" : "Return"})
                     </h3>
                     <p className="text-xs text-gray-500">
                       {CLASS_LABELS[passengerClasses[activePassengerIndex]]}{" "}
@@ -2517,33 +3068,65 @@ const finalTotal = totalWithoutDiscount - pointsUsed;
                   </div>
                 </div>
                 <div className="h-[65vh] overflow-y-auto no-scrollbar pb-6 px-1">
-                  <AirplaneSeatMap
-                    ticketClass={passengerClasses[activePassengerIndex]}
-                    flightId={selectedFlight.id}
-                    passengerCount={1}
-                    selectedSeats={
-                      chosenSeats[activePassengerIndex]
-                        ? [chosenSeats[activePassengerIndex]]
-                        : []
-                    }
-                    selectedTypes={
-                      chosenTypes[activePassengerIndex]
-                        ? [chosenTypes[activePassengerIndex]]
-                        : []
-                    }
-                    basePrice={
-                      selectedFlight.price[
+                  {seatMapStep === "outbound" ? (
+                    <AirplaneSeatMap
+                      ticketClass={passengerClasses[activePassengerIndex]}
+                      flightId={selectedFlight.id}
+                      passengerCount={1}
+                      selectedSeats={
+                        chosenSeats[activePassengerIndex]
+                          ? [chosenSeats[activePassengerIndex]]
+                          : []
+                      }
+                      selectedTypes={
+                        chosenTypes[activePassengerIndex]
+                          ? [chosenTypes[activePassengerIndex]]
+                          : []
+                      }
+                      basePrice={
+                        selectedFlight.price[
                         passengerClasses[activePassengerIndex]
-                      ] ?? 0
-                    }
-                    onToggle={toggleSeat}
-                    takenSeats={[
-                      ...takenSeats,
-                      ...chosenSeats.filter(
-                        (s, i) => i !== activePassengerIndex && s !== "",
-                      ),
-                    ]}
-                  />
+                        ] ?? 0
+                      }
+                      onToggle={toggleSeat}
+                      takenSeats={[
+                        ...takenSeats,
+                        ...chosenSeats.filter(
+                          (s, i) => i !== activePassengerIndex && s !== "",
+                        ),
+                      ]}
+                    />
+                  ) : (
+                    selectedReturnFlight && (
+                      <AirplaneSeatMap
+                        ticketClass={passengerClasses[activePassengerIndex]}
+                        flightId={selectedReturnFlight.id}
+                        passengerCount={1}
+                        selectedSeats={
+                          chosenReturnSeats[activePassengerIndex]
+                            ? [chosenReturnSeats[activePassengerIndex]]
+                            : []
+                        }
+                        selectedTypes={
+                          chosenReturnTypes[activePassengerIndex]
+                            ? [chosenReturnTypes[activePassengerIndex]]
+                            : []
+                        }
+                        basePrice={
+                          selectedReturnFlight.price[
+                          passengerClasses[activePassengerIndex]
+                          ] ?? 0
+                        }
+                        onToggle={toggleSeat}
+                        takenSeats={[
+                          ...takenReturnSeats,
+                          ...chosenReturnSeats.filter(
+                            (s, i) => i !== activePassengerIndex && s !== "",
+                          ),
+                        ]}
+                      />
+                    )
+                  )}
                 </div>
               </div>
             )}

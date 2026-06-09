@@ -1,4 +1,4 @@
-﻿using Pbl3.DTOs.Bookings;
+using Pbl3.DTOs.Bookings;
 using Pbl3.DTOs.Flight;
 using Pbl3.DTOs.Others;
 namespace Pbl3.Services.Interface
@@ -12,6 +12,7 @@ namespace Pbl3.Services.Interface
         public Task<List<FlightDTO>> getAllFlights();
         public Task<FlightDTO> getFlight(FlightSearchDTO dto);
         public Task<List<FlightSearchResponseDTO>> SearchFlights(FlightSearchRequestDTO dto);
+        public Task<List<RoundFlightSearchResponseDTO>> GetRoundFlights(FlightSearchRequestDTO dto);
         public Task deleteFlight(FlightSearchDTO dto);
         public Task deleteDiscountFlight(FlightSearchDTO dto);
         public Task insertRequest(LowBookingDTORequest dto);
@@ -24,6 +25,8 @@ namespace Pbl3.Services.Interface
         public Task<List<SeatSelectionDTO>> getAvailableSeatFlight(FlightSearchDTO dto);
         public Task<FlightSearchDTO> getKeyFromId(string flightId);
         public Task<FlightApiDTO> getFlightFromCodeTicket(string codeTicket);
+        public Task<List<PassengerFlightDTO>> getPassengerFlight(FlightSearchDTO dto);
+        public Task<string> getFlightNumber(string departureCode, string arrivalCode);
 
 
     }

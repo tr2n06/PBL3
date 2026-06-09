@@ -53,6 +53,33 @@ namespace Pbl3.Migrations
                     b.ToTable("Booking");
                 });
 
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Bookings.RoundTickets", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<string>("codeTicket")
+                        .IsRequired()
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("returnCodeTicket")
+                        .IsRequired()
+                        .HasColumnType("varchar(16)");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("codeTicket")
+                        .IsUnique();
+
+                    b.HasIndex("returnCodeTicket")
+                        .IsUnique();
+
+                    b.ToTable("RoundTickets");
+                });
+
             modelBuilder.Entity("Pbl3.DataAccess.Models.Bookings.Ticket", b =>
                 {
                     b.Property<string>("codeTicket")
@@ -60,12 +87,6 @@ namespace Pbl3.Migrations
 
                     b.Property<bool>("CanSelectSeat")
                         .HasColumnType("bit");
-
-                    b.Property<DateOnly>("arriveDate")
-                        .HasColumnType("date");
-
-                    b.Property<TimeOnly>("arriveTime")
-                        .HasColumnType("time");
 
                     b.Property<string>("codeBooking")
                         .IsRequired()
@@ -81,6 +102,12 @@ namespace Pbl3.Migrations
 
                     b.Property<DateOnly>("dateOfBirth")
                         .HasColumnType("date");
+
+                    b.Property<DateOnly>("departureDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("departureTime")
+                        .HasColumnType("time");
 
                     b.Property<string>("email")
                         .IsRequired()
@@ -115,10 +142,9 @@ namespace Pbl3.Migrations
 
                     b.HasIndex("codeBooking");
 
-                    b.HasIndex("codeFlight", "arriveDate", "arriveTime");
+                    b.HasIndex("codeFlight", "departureDate", "departureTime");
 
-                    b.HasIndex("codeSeat", "codeFlight", "arriveDate", "arriveTime")
-                        .IsUnique();
+                    b.HasIndex("codeSeat", "codeFlight", "departureDate", "departureTime");
 
                     b.ToTable("Ticket");
                 });
@@ -128,18 +154,18 @@ namespace Pbl3.Migrations
                     b.Property<string>("codeFlight")
                         .HasColumnType("varchar(6)");
 
-                    b.Property<DateOnly>("arriveDate")
+                    b.Property<DateOnly>("departureDate")
                         .HasColumnType("date");
 
-                    b.Property<TimeOnly>("arriveTime")
+                    b.Property<TimeOnly>("departureTime")
                         .HasColumnType("time");
 
                     b.Property<int>("discountPercentage")
                         .HasColumnType("int");
 
-                    b.HasKey("codeFlight", "arriveDate", "arriveTime");
+                    b.HasKey("codeFlight", "departureDate", "departureTime");
 
-                    b.ToTable("DiscountFlights");
+                    b.ToTable("DiscountFlight");
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.Flight", b =>
@@ -147,10 +173,10 @@ namespace Pbl3.Migrations
                     b.Property<string>("codeFlight")
                         .HasColumnType("varchar(6)");
 
-                    b.Property<DateOnly>("arriveDate")
+                    b.Property<DateOnly>("departureDate")
                         .HasColumnType("date");
 
-                    b.Property<TimeOnly>("arriveTime")
+                    b.Property<TimeOnly>("departureTime")
                         .HasColumnType("time");
 
                     b.Property<DateOnly>("landingDate")
@@ -166,10 +192,7 @@ namespace Pbl3.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("codeFlight", "arriveDate", "arriveTime");
-
-                    b.HasIndex("codeFlight")
-                        .IsUnique();
+                    b.HasKey("codeFlight", "departureDate", "departureTime");
 
                     b.ToTable("Flight");
                 });
@@ -182,26 +205,18 @@ namespace Pbl3.Migrations
                     b.Property<string>("codeFlight")
                         .HasColumnType("varchar(6)");
 
-                    b.Property<DateOnly>("arriveDate")
+                    b.Property<DateOnly>("departureDate")
                         .HasColumnType("date");
 
-                    b.Property<TimeOnly>("arriveTime")
+                    b.Property<TimeOnly>("departureTime")
                         .HasColumnType("time");
 
                     b.Property<bool>("isBooked")
                         .HasColumnType("bit");
 
-                    b.Property<string>("ticketcodeTicket")
-                        .HasColumnType("varchar(16)");
+                    b.HasKey("codeSeat", "codeFlight", "departureDate", "departureTime");
 
-                    b.HasKey("codeSeat", "codeFlight", "arriveDate", "arriveTime");
-
-                    b.HasIndex("codeSeat")
-                        .IsUnique();
-
-                    b.HasIndex("ticketcodeTicket");
-
-                    b.HasIndex("codeFlight", "arriveDate", "arriveTime");
+                    b.HasIndex("codeFlight", "departureDate", "departureTime");
 
                     b.ToTable("FlightSeat");
                 });
@@ -282,8 +297,7 @@ namespace Pbl3.Migrations
 
                     b.HasIndex("codeTicket");
 
-                    b.HasIndex("codeTransaction")
-                        .IsUnique();
+                    b.HasIndex("codeTransaction");
 
                     b.ToTable("Baggage");
                 });
@@ -306,9 +320,6 @@ namespace Pbl3.Migrations
                     b.HasKey("abbreviatedName");
 
                     b.HasIndex("airplane")
-                        .IsUnique();
-
-                    b.HasIndex("fullName")
                         .IsUnique();
 
                     b.ToTable("City");
@@ -421,12 +432,6 @@ namespace Pbl3.Migrations
                     b.Property<string>("id")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<DateOnly>("arriveDate")
-                        .HasColumnType("date");
-
-                    b.Property<TimeOnly>("arriveTime")
-                        .HasColumnType("time");
-
                     b.Property<string>("codeFlight")
                         .IsRequired()
                         .HasColumnType("varchar(6)");
@@ -434,12 +439,18 @@ namespace Pbl3.Migrations
                     b.Property<DateTime>("createAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateOnly>("departureDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("departureTime")
+                        .HasColumnType("time");
+
                     b.Property<int>("discount")
                         .HasColumnType("int");
 
                     b.HasKey("id");
 
-                    b.HasIndex("codeFlight", "arriveDate", "arriveTime")
+                    b.HasIndex("codeFlight", "departureDate", "departureTime")
                         .IsUnique();
 
                     b.ToTable("Promotion");
@@ -528,20 +539,20 @@ namespace Pbl3.Migrations
                 {
                     b.HasBaseType("Pbl3.DataAccess.Models.Others.Request");
 
-                    b.Property<DateOnly>("arriveDate")
-                        .HasColumnType("date");
-
-                    b.Property<TimeOnly>("arriveTime")
-                        .HasColumnType("time");
-
                     b.Property<string>("codeFlight")
                         .IsRequired()
                         .HasColumnType("varchar(6)");
 
+                    b.Property<DateOnly>("departureDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("departureTime")
+                        .HasColumnType("time");
+
                     b.Property<int>("discount")
                         .HasColumnType("int");
 
-                    b.HasIndex("codeFlight", "arriveDate", "arriveTime");
+                    b.HasIndex("codeFlight", "departureDate", "departureTime");
 
                     b.ToTable("FlightRequest");
                 });
@@ -569,15 +580,15 @@ namespace Pbl3.Migrations
                 {
                     b.HasBaseType("Pbl3.DataAccess.Models.Others.Request");
 
-                    b.Property<DateOnly>("arriveDate")
-                        .HasColumnType("date");
-
-                    b.Property<TimeOnly>("arriveTime")
-                        .HasColumnType("time");
-
                     b.Property<string>("codeFlight")
                         .IsRequired()
                         .HasColumnType("varchar(6)");
+
+                    b.Property<DateOnly>("departureDate")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly>("departureTime")
+                        .HasColumnType("time");
 
                     b.Property<int>("discount")
                         .HasColumnType("int");
@@ -586,9 +597,9 @@ namespace Pbl3.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.HasIndex("codeFlight", "arriveDate", "arriveTime")
+                    b.HasIndex("codeFlight", "departureDate", "departureTime")
                         .IsUnique()
-                        .HasFilter("[codeFlight] IS NOT NULL AND [arriveDate] IS NOT NULL AND [arriveTime] IS NOT NULL");
+                        .HasFilter("[codeFlight] IS NOT NULL AND [departureDate] IS NOT NULL AND [departureTime] IS NOT NULL");
 
                     b.ToTable("PromotionRequest");
                 });
@@ -660,6 +671,25 @@ namespace Pbl3.Migrations
                     b.Navigation("user");
                 });
 
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Bookings.RoundTickets", b =>
+                {
+                    b.HasOne("Pbl3.DataAccess.Models.Bookings.Ticket", "ticket")
+                        .WithMany()
+                        .HasForeignKey("codeTicket")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pbl3.DataAccess.Models.Bookings.Ticket", "returnTicket")
+                        .WithMany()
+                        .HasForeignKey("returnCodeTicket")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("returnTicket");
+
+                    b.Navigation("ticket");
+                });
+
             modelBuilder.Entity("Pbl3.DataAccess.Models.Bookings.Ticket", b =>
                 {
                     b.HasOne("Pbl3.DataAccess.Models.Bookings.Booking", "booking")
@@ -670,13 +700,13 @@ namespace Pbl3.Migrations
 
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
                         .WithMany("tickets")
-                        .HasForeignKey("codeFlight", "arriveDate", "arriveTime")
+                        .HasForeignKey("codeFlight", "departureDate", "departureTime")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("Pbl3.DataAccess.Models.Flights.FlightSeat", "seat")
-                        .WithOne()
-                        .HasForeignKey("Pbl3.DataAccess.Models.Bookings.Ticket", "codeSeat", "codeFlight", "arriveDate", "arriveTime")
+                        .WithMany("tickets")
+                        .HasForeignKey("codeSeat", "codeFlight", "departureDate", "departureTime")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
@@ -691,7 +721,7 @@ namespace Pbl3.Migrations
                 {
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
                         .WithOne("discountFlight")
-                        .HasForeignKey("Pbl3.DataAccess.Models.Flights.DiscountFlight", "codeFlight", "arriveDate", "arriveTime")
+                        .HasForeignKey("Pbl3.DataAccess.Models.Flights.DiscountFlight", "codeFlight", "departureDate", "departureTime")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -701,8 +731,8 @@ namespace Pbl3.Migrations
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.Flight", b =>
                 {
                     b.HasOne("Pbl3.DataAccess.Models.Others.FromTo", "fromTo")
-                        .WithOne()
-                        .HasForeignKey("Pbl3.DataAccess.Models.Flights.Flight", "codeFlight")
+                        .WithMany()
+                        .HasForeignKey("codeFlight")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
@@ -712,26 +742,20 @@ namespace Pbl3.Migrations
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.FlightSeat", b =>
                 {
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Seat", "seat")
-                        .WithOne()
-                        .HasForeignKey("Pbl3.DataAccess.Models.Flights.FlightSeat", "codeSeat")
+                        .WithMany()
+                        .HasForeignKey("codeSeat")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.HasOne("Pbl3.DataAccess.Models.Bookings.Ticket", "ticket")
-                        .WithMany()
-                        .HasForeignKey("ticketcodeTicket");
-
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
                         .WithMany("flightSeats")
-                        .HasForeignKey("codeFlight", "arriveDate", "arriveTime")
+                        .HasForeignKey("codeFlight", "departureDate", "departureTime")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("flight");
 
                     b.Navigation("seat");
-
-                    b.Navigation("ticket");
                 });
 
             modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.Seat", b =>
@@ -753,8 +777,8 @@ namespace Pbl3.Migrations
                         .IsRequired();
 
                     b.HasOne("Pbl3.DataAccess.Models.Payment.Transaction", "transaction")
-                        .WithOne()
-                        .HasForeignKey("Pbl3.DataAccess.Models.Others.Baggage", "codeTransaction")
+                        .WithMany()
+                        .HasForeignKey("codeTransaction")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -803,7 +827,7 @@ namespace Pbl3.Migrations
                 {
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
                         .WithOne("promotion")
-                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.Promotion", "codeFlight", "arriveDate", "arriveTime")
+                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.Promotion", "codeFlight", "departureDate", "departureTime")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -841,7 +865,7 @@ namespace Pbl3.Migrations
 
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
                         .WithMany("requests")
-                        .HasForeignKey("codeFlight", "arriveDate", "arriveTime")
+                        .HasForeignKey("codeFlight", "departureDate", "departureTime")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -875,7 +899,7 @@ namespace Pbl3.Migrations
 
                     b.HasOne("Pbl3.DataAccess.Models.Flights.Flight", "flight")
                         .WithOne()
-                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.PromotionRequest", "codeFlight", "arriveDate", "arriveTime")
+                        .HasForeignKey("Pbl3.DataAccess.Models.Promotions.PromotionRequest", "codeFlight", "departureDate", "departureTime")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -943,6 +967,11 @@ namespace Pbl3.Migrations
 
                     b.Navigation("requests");
 
+                    b.Navigation("tickets");
+                });
+
+            modelBuilder.Entity("Pbl3.DataAccess.Models.Flights.FlightSeat", b =>
+                {
                     b.Navigation("tickets");
                 });
 

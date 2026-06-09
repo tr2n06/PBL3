@@ -6,6 +6,6 @@
         public int idUser { get; set; }
         public string codeTransaction { get; set; }
         public decimal bookedPrice { get; set; }
-        public DateTime bookedTime { get; set; }
+        public string bookedTime { get; set; }
     }
 }

@@ -1,15 +1,26 @@
 export type CurrentUser = {
-  userId: string | number;
+  id: string | number;
   fullName: string;
   email: string;
   role: string;
   phone?: string;
+  gender?: "Male" | "Female" | string;
+  dateOfBirth?: string;
+  address?: string;
   availablePoints?: number;
+};
+
+export type UpdateCurrentUserPayload = {
+  fullName?: string;
+  phone?: string;
+  gender?: "Male" | "Female" | string;
+  dateOfBirth?: string;
+  address?: string;
 };
 
 export async function getCurrentUser() {
   const res = await fetch(
-    `http://localhost:5290/api/auth/me`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/me`,
     {
       method: "GET",
       credentials: "include",
@@ -26,12 +37,9 @@ export async function getCurrentUser() {
 
   return res.json() as Promise<CurrentUser>;
 }
-export async function updateCurrentUser(payload: {
-  fullName?: string;
-  phone?: string;
-}) {
+export async function updateCurrentUser(payload: UpdateCurrentUserPayload) {
   const res = await fetch(
-    `http://localhost:5290/api/auth/me`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/me`,
     {
       method: "PATCH",
       credentials: "include",
@@ -55,7 +63,7 @@ export async function changePassword(payload: {
   newPasswordConfirm: string;
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/auth/password`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/password`,
     {
       method: "PATCH",
       credentials: "include",

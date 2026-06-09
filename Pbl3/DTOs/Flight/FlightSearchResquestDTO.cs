@@ -12,4 +12,4 @@ namespace Pbl3.DTOs.Flight
         public int children { get; set; }
         public int infants { get; set; }
     }
-}
+} 

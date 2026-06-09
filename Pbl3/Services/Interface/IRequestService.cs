@@ -27,6 +27,7 @@ namespace Pbl3.Services.Implementations
         public Task<List<TicketCancellationRequestResponseDTO>> getPendingTicketCancellationRequests();
         public Task<TicketCancellationRequestResponseDTO> getTicketCancellationRequest(string id);
         public Task createTicketCancellationRequest(TicketCancellationRequestDTO dto);
+        public Task<bool> isTicketCancellationRequested(string ticketId);
 
     }
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Pbl3.DataAccess.Models.Users;
 using Pbl3.DataAccess.Models.Payment;
 using Pbl3.DataAccess.Models.Others;
@@ -19,6 +19,7 @@ namespace Pbl3.DataAccess.Data
             public DbSet<Transaction> Transaction { get; set; }
             public DbSet<Booking> Booking { get; set; }
             public DbSet<Ticket> Ticket { get; set; }
+            public DbSet<RoundTickets> RoundTickets { get; set; }
             public DbSet<CancelRequest> CancelRequest { get; set; }
             public DbSet<Flight> Flight { get; set; }
             public DbSet<Seat> Seat { get; set; }
@@ -69,20 +70,20 @@ namespace Pbl3.DataAccess.Data
                         {
                               seat.codeSeat,
                               seat.codeFlight,
-                              seat.arriveDate,
-                              seat.arriveTime
-                        }).IsUnique();
+                              seat.departureDate,
+                              seat.departureTime
+                        });
                         entity.HasOne(t => t.booking)
                         .WithMany(b => b.tickets)
                         .HasForeignKey(t => t.codeBooking)
                         .OnDelete(DeleteBehavior.Restrict);
                         entity.HasOne(t => t.seat)
-                        .WithOne()
-                        .HasForeignKey<Ticket>(t => new { t.codeSeat, t.codeFlight, t.arriveDate, t.arriveTime })
+                        .WithMany(s => s.tickets)
+                        .HasForeignKey(t => new { t.codeSeat, t.codeFlight, t.departureDate, t.departureTime })
                         .OnDelete(DeleteBehavior.NoAction);
                         entity.HasOne(t => t.flight)
                         .WithMany(f => f.tickets)
-                        .HasForeignKey(t => new { t.codeFlight, t.arriveDate, t.arriveTime })
+                        .HasForeignKey(t => new { t.codeFlight, t.departureDate, t.departureTime })
                         .OnDelete(DeleteBehavior.NoAction);
                   });
                   modelBuilder.Entity<CancelRequest>(entity =>
@@ -98,10 +99,10 @@ namespace Pbl3.DataAccess.Data
                   });
                   modelBuilder.Entity<Flight>(entity =>
                   {
-                        entity.HasKey(f => new { f.codeFlight, f.arriveDate, f.arriveTime });
+                        entity.HasKey(f => new { f.codeFlight, f.departureDate, f.departureTime });
                         entity.HasOne(f => f.fromTo)
-                        .WithOne()
-                        .HasForeignKey<Flight>(f => f.codeFlight)
+                        .WithMany()
+                        .HasForeignKey(f => f.codeFlight)
                         .OnDelete(DeleteBehavior.NoAction);
                   });
                   modelBuilder.Entity<Seat>(entity =>
@@ -114,30 +115,30 @@ namespace Pbl3.DataAccess.Data
                   });
                   modelBuilder.Entity<FlightSeat>(entity =>
                   {
-                        entity.HasKey(seat => new { seat.codeSeat, seat.codeFlight, seat.arriveDate, seat.arriveTime });
+                        entity.HasKey(seat => new { seat.codeSeat, seat.codeFlight, seat.departureDate, seat.departureTime });
                         entity.HasOne(seat => seat.flight)
                         .WithMany(f => f.flightSeats)
-                        .HasForeignKey(seat => new { seat.codeFlight, seat.arriveDate, seat.arriveTime })
+                        .HasForeignKey(seat => new { seat.codeFlight, seat.departureDate, seat.departureTime })
                         .OnDelete(DeleteBehavior.Cascade);
 
                         entity.HasOne(seat => seat.seat)
-                      .WithOne()
-                      .HasForeignKey<FlightSeat>(seats => seats.codeSeat)
+                      .WithMany()
+                      .HasForeignKey(seats => seats.codeSeat)
                       .OnDelete(DeleteBehavior.NoAction);
                   });
                   modelBuilder.Entity<DiscountFlight>(entity =>
                   {
-                        entity.HasKey(f => new { f.codeFlight, f.arriveDate, f.arriveTime });
+                        entity.HasKey(f => new { f.codeFlight, f.departureDate, f.departureTime });
                         entity.HasOne(df => df.flight)
                         .WithOne(f => f.discountFlight)
-                        .HasForeignKey<DiscountFlight>(df => new { df.codeFlight, df.arriveDate, df.arriveTime })
+                        .HasForeignKey<DiscountFlight>(df => new { df.codeFlight, df.departureDate, df.departureTime })
                         .OnDelete(DeleteBehavior.Cascade);
                   });
                   modelBuilder.Entity<FlightRequest>(entity =>
                   {
                         entity.HasOne(r => r.flight)
                         .WithMany(f => f.requests)
-                        .HasForeignKey(r => new { r.codeFlight, r.arriveDate, r.arriveTime })
+                        .HasForeignKey(r => new { r.codeFlight, r.departureDate, r.departureTime })
                         .OnDelete(DeleteBehavior.Restrict);
                   });
                   modelBuilder.Entity<FromTo>(entity =>
@@ -154,7 +155,6 @@ namespace Pbl3.DataAccess.Data
                   });
                   modelBuilder.Entity<City>(entity =>
                   {
-                        entity.HasIndex(c => c.fullName).IsUnique(true);
                         entity.HasIndex(c => c.airplane).IsUnique(true);
                   });
                   modelBuilder.Entity<Baggage>(entity =>
@@ -164,15 +164,15 @@ namespace Pbl3.DataAccess.Data
                         .HasForeignKey(b => b.codeTicket)
                         .OnDelete(DeleteBehavior.Cascade);
                         entity.HasOne(b => b.transaction)
-                          .WithOne()
-                          .HasForeignKey<Baggage>(b => b.codeTransaction)
+                          .WithMany()
+                          .HasForeignKey(b => b.codeTransaction)
                           .OnDelete(DeleteBehavior.Restrict);
                   });
                   modelBuilder.Entity<Promotion>(entity =>
                   {
                         entity.HasOne(p => p.flight)
                         .WithOne(f => f.promotion)
-                        .HasForeignKey<Promotion>(p => new { p.codeFlight, p.arriveDate, p.arriveTime })
+                        .HasForeignKey<Promotion>(p => new { p.codeFlight, p.departureDate, p.departureTime })
                         .OnDelete(DeleteBehavior.Cascade);
                   });
                   modelBuilder.Entity<PromotionRequest>(entity =>
@@ -180,7 +180,7 @@ namespace Pbl3.DataAccess.Data
 
                         entity.HasOne(p => p.flight)
                         .WithOne()
-                        .HasForeignKey<PromotionRequest>(p => new { p.codeFlight, p.arriveDate, p.arriveTime })
+                        .HasForeignKey<PromotionRequest>(p => new { p.codeFlight, p.departureDate, p.departureTime })
                         .OnDelete(DeleteBehavior.Cascade);
                   });
                   modelBuilder.Entity<PromotionCancelRequest>(entity =>
@@ -204,6 +204,22 @@ namespace Pbl3.DataAccess.Data
                         .HasForeignKey(re => re.reviewer_id)
                         .OnDelete(DeleteBehavior.NoAction);
 
+                  });
+
+                  modelBuilder.Entity<RoundTickets>(entity =>
+                  {
+                        entity.HasIndex(r => r.codeTicket).IsUnique(true);
+                        entity.HasIndex(r => r.returnCodeTicket).IsUnique(true);
+
+                        entity.HasOne(r => r.ticket)
+                        .WithMany()
+                        .HasForeignKey(r => r.codeTicket)
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                        entity.HasOne(r => r.returnTicket)
+                        .WithMany()
+                        .HasForeignKey(r => r.returnCodeTicket)
+                        .OnDelete(DeleteBehavior.Restrict);
                   });
 
             }

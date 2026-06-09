@@ -20,14 +20,23 @@ namespace Pbl3.Repositories.Implementation
         {
             return await _context.Promotions
                             .Include(p => p.flight)
-                            .Where(p => p.arriveDate.ToDateTime(p.arriveTime) > DateTime.Now)
+                                .ThenInclude(f => f.fromTo)
+                                    .ThenInclude(ft => ft.fromCity)
+                            .Include(p => p.flight)
+                                .ThenInclude(f => f.fromTo)
+                                    .ThenInclude(ft => ft.toCity)
+                            .Where(p => p.departureDate.ToDateTime(p.departureTime) > DateTime.Now)
                             .ToListAsync();
         }
 
         public async Task<List<Flight>> GetCandidateFlights()
         {
             return await _context.Flight
-                .Where(f => f.arriveDate >= DateOnly.FromDateTime(DateTime.Now) && f.arriveTime >= TimeOnly.FromDateTime(DateTime.Now) && f.promotion == null)
+                .Include(f => f.fromTo)
+                    .ThenInclude(ft => ft.fromCity)
+                .Include(f => f.fromTo)
+                    .ThenInclude(ft => ft.toCity)
+                .Where(f => f.departureDate >= DateOnly.FromDateTime(DateTime.Now) && f.departureTime >= TimeOnly.FromDateTime(DateTime.Now) && f.promotion == null)
                 .ToListAsync();
         }
 
@@ -52,9 +61,9 @@ namespace Pbl3.Repositories.Implementation
             }
         }
 
-        public async Task<bool> isPromotion(string codeFlight, DateOnly arriveDate, TimeOnly arriveTime)
+        public async Task<bool> isPromotion(string codeFlight, DateOnly departureDate, TimeOnly departureTime)
         {
-            var pro = await _context.Promotions.FirstOrDefaultAsync(p => p.codeFlight == codeFlight && p.arriveDate == arriveDate && p.arriveTime == arriveTime);
+            var pro = await _context.Promotions.FirstOrDefaultAsync(p => p.codeFlight == codeFlight && p.departureDate == departureDate && p.departureTime == departureTime);
             if (pro != null) return false;
             return true;
         }

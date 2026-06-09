@@ -16,8 +16,13 @@ public partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-                                                                      .UseLazyLoadingProxies());
+        builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(
+                builder.Configuration.GetConnectionString("DefaultConnection"))
+           .UseLazyLoadingProxies()
+           .EnableSensitiveDataLogging()
+           .EnableDetailedErrors()
+);
         builder.Services.AddLogging(logging =>
         {
             logging.AddConsole();
@@ -32,6 +37,7 @@ public partial class Program
         builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
         builder.Services.AddScoped<IPromotionRepository, PromotionRepository>();
         builder.Services.AddScoped<IRequestRepository, RequestRepository>();
+        builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IMailService, MailService>();
@@ -42,6 +48,7 @@ public partial class Program
         builder.Services.AddScoped<IStatisticsService, StatisticsService>();
         builder.Services.AddScoped<IPromotionService, PromotionService>();
         builder.Services.AddScoped<IRequestService, RequestService>();
+        builder.Services.AddScoped<IPaymentService, PaymentService>();
 
         builder.Services.AddMemoryCache();
 
@@ -54,11 +61,35 @@ public partial class Program
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
 
+        var allowedOrigins = new List<string>
+        {
+            "http://localhost:3000",
+            "http://localhost:5173"
+        };
+
+        try
+        {
+            var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    string ipStr = ip.ToString();
+                    if (ipStr != "127.0.0.1")
+                    {
+                        allowedOrigins.Add($"http://{ipStr}:3000");
+                        allowedOrigins.Add($"http://{ipStr}:5173");
+                    }
+                }
+            }
+        }
+        catch (Exception) { }
+
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowFrontend", policy =>
             {
-                policy.WithOrigins("http://localhost:3000")
+                policy.SetIsOriginAllowed(origin => true)
                     .AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials();
@@ -83,6 +114,25 @@ public partial class Program
         app.UseStaticFiles();
 
         app.MapControllers();
+
+        using (var scope = app.Services.CreateScope())
+        {
+            try
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                context.Database.ExecuteSqlRaw(@"
+                    IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Baggage_codeTransaction' AND object_id = OBJECT_ID('Baggage'))
+                    BEGIN
+                        DROP INDEX IX_Baggage_codeTransaction ON Baggage;
+                    END
+                ");
+                Console.WriteLine("[DB SETUP] Successfully verified/dropped unique index IX_Baggage_codeTransaction.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DB SETUP] Warning: Could not drop index IX_Baggage_codeTransaction: {ex.Message}");
+            }
+        }
 
         app.Run();
         return Task.CompletedTask;

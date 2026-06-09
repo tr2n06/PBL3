@@ -1,4 +1,4 @@
-﻿using Pbl3.DTOs.Auth;
+using Pbl3.DTOs.Auth;
 using Pbl3.Repositories.Implementation;
 using Pbl3.DataAccess.Data;
 using Pbl3.DTOs.Account;
@@ -37,14 +37,24 @@ namespace Pbl3.Services.Implementation
         {
 
             var user = await userRepository.GetUserByEmail(dtO.email);
-            if (user == null) return null;
+            if (user == null) {
+                return null;
+
+            }
             if (user.pass != dtO.password) return null;
             if (user.status == "blocked") return null;
+
+            string actualType = (user.id > 50) ? "Passenger" : (user.id > 10) ? "Staff" : "Admin";
+            if (!string.IsNullOrEmpty(dtO.role) && actualType != dtO.role)
+            {
+                return null;
+            }
+
             return new LoginResponseDTO
             {
                 id = user.id,
                 name = user.name,
-                type = (user.id > 50) ? "Passenger" : (user.id > 10) ? "Staff" : "Admin"
+                type = actualType
             };
         }
         public async Task updateNewPass(ResetPasswordDTO dtO)
@@ -129,6 +139,7 @@ namespace Pbl3.Services.Implementation
             u.gender = (p.gender == 1) ? "Male" : "Female";
             u.email = p.email;
             u.phoneNumber = p.phoneNumber;
+            u.address = p.address;
             u.dateOfBirth = p.dateOfBirth;
             u.pointReward = p.pointReward;
             u.password = p.pass;
@@ -146,6 +157,7 @@ namespace Pbl3.Services.Implementation
             u.gender = (p.gender == 1) ? "Male" : "Female";
             u.email = p.email;
             u.phoneNumber = p.phoneNumber;
+            u.address = p.address;
             u.dateOfBirth = p.dateOfBirth ?? DateOnly.FromDateTime(DateTime.Now);
             u.joinedDate = p.joinedDate;
             u.password = p.pass;
@@ -163,6 +175,7 @@ namespace Pbl3.Services.Implementation
             u.gender = (p.gender == 1) ? "Male" : "Female";
             u.email = p.email;
             u.phoneNumber = p.phoneNumber;
+            u.address = p.address;
             u.dateOfBirth = p.dateOfBirth ?? DateOnly.FromDateTime(DateTime.Now);
             u.joinedDate = p.joinedDate;
             u.password = p.pass;
@@ -186,9 +199,10 @@ namespace Pbl3.Services.Implementation
         {
             try
             {
+                Console.WriteLine("Id: " + dto.id);
                 if (dto.id >= 51) await userRepository.UpdatePassenger(dto);
                 else if (dto.id >= 11) await userRepository.UpdateStaff(dto);
-                throw new Exception("Invalid type of user");
+                else throw new Exception("Invalid type of user");
             }
             catch(Exception e)
             {

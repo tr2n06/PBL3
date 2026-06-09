@@ -1,14 +1,17 @@
 'use client'
 
-import { useState,useEffect } from 'react'
+import { useState,useEffect,useCallback } from 'react'
+import type { TicketClass } from '@/lib/types'
 import {
   getTicketDetail,
   requestTicketUpgrade,
   addTicketBaggage,
   requestTicketCancellation,
+  checkTicketCancellationRequested,
 } from '@/lib/manage-tickets-api'
+import { confirmSuccessPayment, completePayment } from '@/lib/payment-api'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -63,7 +66,12 @@ export type TicketDetailResponse = {
   baggage: {
     cabin: number;
     checked: number;
+    priceCabin?: number;
+    checkedCabin?: number;
   };
+  totalPrice?: number;
+  isCancelled?: boolean;
+  isUpgraded?: boolean;
   flight: {
     flightNumber: string;
     airline: string;
@@ -84,7 +92,6 @@ export type TicketDetailResponse = {
     };
   };
 };
-import type { TicketClass } from '@/lib/types'
 
 // ─── Matches booking page exactly ────────────────────────────────────────────
 const CLASS_LABELS: Record<TicketClass, string> = {
@@ -120,7 +127,7 @@ function getAvailableUpgrades(current: TicketClass): TicketClass[] {
 }
 
 // Baggage: 30,000 VND per kg (matches booking page)
-const BAGGAGE_VND_PER_KG = 30_000
+const BAGGAGE_VND_PER_KG = 40_000
 // Each +/- button adds/removes exactly 1 kg
 const KG_PER_BAG = 1
 
@@ -169,7 +176,7 @@ function PaymentStep({
         {/* Card */}
         <button
           type="button"
-          onClick={() => setPaymentMethod('card')}
+          onClick={() => alert("We are sorry, this payment method is currently not supported.")}
           className={`relative group flex flex-col items-center p-3 rounded-2xl border-2 transition-all duration-200 bg-white shadow-sm hover:shadow-lg ${
             paymentMethod === 'card'
               ? 'border-primary ring-4 ring-primary/10'
@@ -245,14 +252,22 @@ function PaymentStep({
 export default function TicketDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const ticketId = params.id as string
+  const returnTicketId = searchParams.get('returnTicketId')
 
-const [ticket, setTicket] = useState<TicketDetailResponse | null>(null)
-const [pageLoading, setPageLoading] = useState(true)
-const [pageError, setPageError] = useState("")
+  const [mainTicket, setMainTicket] = useState<TicketDetailResponse | null>(null)
+  const [returnTicket, setReturnTicket] = useState<TicketDetailResponse | null>(null)
+  const [pageLoading, setPageLoading] = useState(true)
+  const [pageError, setPageError] = useState("")
+
+  const [activeDialogTicket, setActiveDialogTicket] = useState<TicketDetailResponse | null>(null)
 
   // ── Extra baggage paid (VND) – persisted across dialog closes ─────────────
   const [extraBaggagePaidVND, setExtraBaggagePaidVND] = useState(0)
+
+  const [isMainCancelledRequested, setIsMainCancelledRequested] = useState(false)
+  const [isReturnCancelledRequested, setIsReturnCancelledRequested] = useState(false)
 
   // ── Upgrade dialog ────────────────────────────────────────────────────────
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false)
@@ -274,50 +289,213 @@ const [pageError, setPageError] = useState("")
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
-useEffect(() => {
-  const loadTicket = async () => {
-    try {
-      setPageLoading(true)
-      setPageError("")
-      const data = await getTicketDetail(ticketId)
-      setTicket(data)
-    } catch (error) {
-      console.error("Load ticket detail failed:", error)
-      setPageError(error instanceof Error ? error.message : "Failed to load ticket")
-    } finally {
-      setPageLoading(false)
-    }
+
+  // ── Unpaid (pending) payment state variables ──────────────────────────────
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'qr' | null>(null)
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
+  const [isPaying, setIsPaying] = useState(false)
+
+  const isTicketExpiredCheck = (t: TicketDetailResponse) => {
+    const departureDate = new Date(`${t.flight.departure.date}T${t.flight.departure.time}`)
+    return departureDate < new Date()
   }
 
-  if (ticketId) loadTicket()
-}, [ticketId])
-if (pageLoading) {
-  return (
-    <div className="flex flex-col items-center justify-center py-12">
-      <Plane className="mb-4 h-12 w-12 text-muted-foreground" />
-      <p className="text-muted-foreground">Loading ticket...</p>
-    </div>
-  )
-}
+  const isExpired = mainTicket ? isTicketExpiredCheck(mainTicket) : false
+  const isReturnExpired = returnTicket ? isTicketExpiredCheck(returnTicket) : false
 
-if (pageError) {
-  return (
-    <div className="flex flex-col items-center justify-center py-12">
-      <Plane className="mb-4 h-12 w-12 text-muted-foreground" />
-      <h2 className="mb-2 text-xl font-semibold">Failed to load ticket</h2>
-      <p className="mb-4 text-muted-foreground">{pageError}</p>
-      <Button asChild>
-        <Link href="/customer/my-tickets">Back to My Tickets</Link>
-      </Button>
-    </div>
-  )
-}
-  if (!ticket) {
+  const refreshTicketDetails = useCallback(async () => {
+    if (!ticketId) return
+    try {
+      const data = await getTicketDetail(ticketId)
+      setMainTicket(data)
+      try {
+        const isUpgReq = await checkTicketCancellationRequested(ticketId)
+        setIsMainCancelledRequested(isUpgReq)
+      } catch (e) {
+        console.error(e)
+      }
+      if (activeDialogTicket && activeDialogTicket.id === data.id) {
+        setActiveDialogTicket(data)
+      }
+    } catch (err) {
+      console.error("Refresh ticket failed:", err)
+    }
+
+    if (returnTicketId) {
+      try {
+        const retData = await getTicketDetail(returnTicketId)
+        setReturnTicket(retData)
+        try {
+          const isRetReq = await checkTicketCancellationRequested(returnTicketId)
+          setIsReturnCancelledRequested(isRetReq)
+        } catch (e) {
+          console.error(e)
+        }
+        if (activeDialogTicket && activeDialogTicket.id === retData.id) {
+          setActiveDialogTicket(retData)
+        }
+      } catch (err) {
+        console.error("Refresh return ticket failed:", err)
+      }
+    }
+  }, [ticketId, returnTicketId, activeDialogTicket])
+
+  // Automated background status polling for pending ticket QR payments
+  useEffect(() => {
+    if (!mainTicket || mainTicket.status !== 'pending' || !paymentMethod || paymentMethod !== 'qr') return;
+
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/status/${mainTicket.bookingRef}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === "confirmed" && active) {
+            clearInterval(interval);
+            await refreshTicketDetails();
+            alert("Thanh toán thành công!");
+          }
+        }
+      } catch (err) {
+        console.error("Status polling failed:", err);
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [mainTicket, paymentMethod, refreshTicketDetails]);
+
+  const handlePendingCardPayment = async () => {
+    if (!mainTicket) return;
+    setIsPaying(true);
+    try {
+      const totalAmount = returnTicket ? mainTicket.price + returnTicket.price : mainTicket.price;
+      await confirmSuccessPayment({
+        bookingRef: mainTicket.bookingRef,
+        paymentMethod: "card",
+        amount: totalAmount
+      });
+      await refreshTicketDetails();
+      alert("Thanh toán thành công!");
+    } catch (err) {
+      console.error("Payment failed:", err);
+      alert(err instanceof Error ? err.message : "Thanh toán thất bại");
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const handlePendingQRPayment = async () => {
+    if (!mainTicket) return;
+    setIsPaying(true);
+    try {
+      const ticketClasses = [mainTicket.ticketClass]
+      const seatNumbers = [mainTicket.seatNumber]
+      const basePrices = [mainTicket.price]
+      const extraBaggageKg = [0]
+
+      if (returnTicket) {
+        ticketClasses.push(returnTicket.ticketClass)
+        seatNumbers.push(returnTicket.seatNumber)
+        basePrices.push(returnTicket.price)
+        extraBaggageKg.push(0)
+      }
+
+      const res = await completePayment({
+        bookingRef: mainTicket.bookingRef,
+        flightId: mainTicket.flightId,
+        returnFlightId: returnTicket?.flightId || undefined,
+        ticketClasses,
+        seatNumbers,
+        passengers: [{
+          passengerType: "adult",
+          title: "MR",
+          firstName: mainTicket.passengerName,
+          middleName: "",
+          lastName: "",
+          gender: "male",
+          dateOfBirth: "1990-01-01",
+          cccd: "",
+          email: "",
+          phoneType: "personal",
+          countryCode: "+84",
+          phone: ""
+        }],
+        passengerCounts: { adults: 1, children: 0, infants: 0 },
+        basePrices,
+        seatTypes: returnTicket ? ["window", "window"] : ["window"],
+        seatSurchargeTotal: 0,
+        totalPrice: returnTicket ? mainTicket.price + returnTicket.price : mainTicket.price,
+        extraBaggageKg,
+        pointsUsed: 0,
+        pointsEarned: 0,
+        paymentMethod: "qr"
+      } as any);
+      if (res.qrLink) {
+        setQrCodeUrl(res.qrLink);
+      }
+    } catch (err) {
+      console.error("QR Code fetch failed:", err);
+      alert("Không lấy được mã QR thanh toán!");
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  useEffect(() => {
+    const loadTickets = async () => {
+      try {
+        setPageLoading(true)
+        setPageError("")
+        const mainData = await getTicketDetail(ticketId)
+        setMainTicket(mainData)
+        try {
+          const isUpgReq = await checkTicketCancellationRequested(ticketId)
+          setIsMainCancelledRequested(isUpgReq)
+        } catch (e) {
+          console.error(e)
+        }
+
+        if (returnTicketId) {
+          const retData = await getTicketDetail(returnTicketId)
+          setReturnTicket(retData)
+          try {
+            const isRetReq = await checkTicketCancellationRequested(returnTicketId)
+            setIsReturnCancelledRequested(isRetReq)
+          } catch (e) {
+            console.error(e)
+          }
+        }
+      } catch (error) {
+        console.error("Load ticket detail failed:", error)
+        setPageError(error instanceof Error ? error.message : "Failed to load ticket")
+      } finally {
+        setPageLoading(false)
+      }
+    }
+
+    if (ticketId) loadTickets()
+  }, [ticketId, returnTicketId])
+
+  if (pageLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Plane className="mb-4 h-12 w-12 text-muted-foreground animate-bounce" />
+        <p className="text-muted-foreground">Loading ticket...</p>
+      </div>
+    )
+  }
+
+  if (pageError || !mainTicket) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Plane className="mb-4 h-12 w-12 text-muted-foreground" />
-        <h2 className="mb-2 text-xl font-semibold">Ticket not found</h2>
-        <p className="mb-4 text-muted-foreground">The ticket you are looking for does not exist.</p>
+        <h2 className="mb-2 text-xl font-semibold">Failed to load ticket</h2>
+        <p className="mb-4 text-muted-foreground">{pageError || "Ticket not found"}</p>
         <Button asChild>
           <Link href="/customer/my-tickets">Back to My Tickets</Link>
         </Button>
@@ -325,25 +503,22 @@ if (pageError) {
     )
   }
 
-  const availableUpgrades = getAvailableUpgrades(ticket.ticketClass)
+  // Shadow variable for simple Dialog components integration
+  const ticket = activeDialogTicket || mainTicket
 
-  // Upgrade cost = difference in base prices + optional seat surcharge
-  const upgradeClassDiff = selectedUpgrade
+  const availableUpgrades = ticket ? getAvailableUpgrades(ticket.ticketClass) : []
+
+  const upgradeClassDiff = (ticket && selectedUpgrade)
     ? getBasePrice(ticket.flightId, selectedUpgrade as TicketClass) -
       getBasePrice(ticket.flightId, ticket.ticketClass)
     : 0
   const upgradeSeatFee = upgradeSeatChosen ? SEAT_SURCHARGE[upgradeType] : 0
   const upgradePrice = upgradeClassDiff + upgradeSeatFee
 
-  // Baggage cost: 30,000 VND per kg (checked only)
   const bagCostVND = extraCheckedKg * BAGGAGE_VND_PER_KG
 
-  // Total Paid = current class base price + cumulative extra baggage paid
-  const currentBasePrice = ticket ? getBasePrice(ticket.flightId, ticket.ticketClass) : 0
-  const totalPaidVND = currentBasePrice + extraBaggagePaidVND
-
-  // ── Upgrade handlers ──────────────────────────────────────────────────────
-  const openUpgradeDialog = () => {
+  const openUpgradeDialog = (t: TicketDetailResponse) => {
+    setActiveDialogTicket(t)
     setSelectedUpgrade('')
     setUpgradeStep('select')
     setUpgradePaymentMethod(null)
@@ -353,33 +528,6 @@ if (pageError) {
     setShowUpgradeDialog(true)
   }
 
-  const handleUpgradePayment = async () => {
-  if (!upgradePaymentMethod || !selectedUpgrade || !ticket) return
-
-  setIsProcessing(true)
-
-  try {
-    const result = await requestTicketUpgrade({
-      ticketId,
-      newClass: selectedUpgrade as TicketClass,
-      seatNumber: upgradeSeatChosen ? upgradeSeat : undefined,
-      seatType: upgradeSeatChosen ? upgradeType : undefined,
-      seatFee: upgradeSeatFee,
-      upgradeFee: upgradeClassDiff,
-      paymentMethod: upgradePaymentMethod,
-    })
-
-    const refreshed = await getTicketDetail(ticketId)
-    setTicket(refreshed)
-
-    setIsProcessing(false)
-    setUpgradeStep('success')
-  } catch (error) {
-    console.error("Upgrade ticket failed:", error)
-    setIsProcessing(false)
-    alert(error instanceof Error ? error.message : "Upgrade failed")
-  }
-}
   const closeUpgradeDialog = () => {
     setShowUpgradeDialog(false)
     setUpgradeStep('select')
@@ -390,39 +538,13 @@ if (pageError) {
     setUpgradeSeatChosen(false)
   }
 
-  // ── Baggage handlers ──────────────────────────────────────────────────────
-  const openBaggageDialog = () => {
+  const openBaggageDialog = (t: TicketDetailResponse) => {
+    setActiveDialogTicket(t)
     setExtraCheckedKg(0)
     setBaggageStep('select')
     setBaggagePaymentMethod(null)
     setShowBaggageDialog(true)
   }
-
-const handleBaggagePayment = async () => {
-  if (!baggagePaymentMethod || !ticket) return
-
-  setIsProcessing(true)
-
-  try {
-    await addTicketBaggage({
-      ticketId,
-      extraCheckedKg,
-      amount: bagCostVND,
-      paymentMethod: baggagePaymentMethod,
-    })
-
-    const refreshed = await getTicketDetail(ticketId)
-    setTicket(refreshed)
-    setExtraBaggagePaidVND(prev => prev + bagCostVND)
-
-    setIsProcessing(false)
-    setBaggageStep('success')
-  } catch (error) {
-    console.error("Add baggage failed:", error)
-    setIsProcessing(false)
-    alert(error instanceof Error ? error.message : "Add baggage failed")
-  }
-}
 
   const closeBaggageDialog = () => {
     setShowBaggageDialog(false)
@@ -431,31 +553,289 @@ const handleBaggagePayment = async () => {
     setExtraCheckedKg(0)
   }
 
-  // ── Cancel handler ────────────────────────────────────────────────────────
- const handleCancelRequest = async () => {
-  if (!cancelReason.trim()) {
-    alert("Please provide a cancellation reason")
-    return
+  const openCancelDialog = (t: TicketDetailResponse) => {
+    setActiveDialogTicket(t)
+    setCancelReason('')
+    setShowCancelDialog(true)
   }
 
-  setIsProcessing(true)
-
-  try {
-    await requestTicketCancellation({
-      ticketId,
-      reason: cancelReason.trim(),
-    })
-
-    setIsProcessing(false)
-    setShowCancelDialog(false)
-    alert("Cancellation request submitted. Waiting for manager approval.")
-    router.push('/customer/my-tickets')
-  } catch (error) {
-    console.error("Cancellation request failed:", error)
-    setIsProcessing(false)
-    alert(error instanceof Error ? error.message : "Cancellation request failed")
+  const handleUpgradePayment = async () => {
+    if (!upgradePaymentMethod || !selectedUpgrade || !activeDialogTicket) return
+    setIsProcessing(true)
+    try {
+      await requestTicketUpgrade({
+        ticketId: activeDialogTicket.id,
+        newClass: selectedUpgrade as TicketClass,
+        seatNumber: upgradeSeatChosen ? upgradeSeat : undefined,
+        seatType: upgradeSeatChosen ? upgradeType : undefined,
+        seatFee: upgradeSeatFee,
+        upgradeFee: upgradeClassDiff,
+        paymentMethod: upgradePaymentMethod,
+      })
+      await refreshTicketDetails()
+      setIsProcessing(false)
+      setUpgradeStep('success')
+    } catch (error) {
+      console.error("Upgrade ticket failed:", error)
+      setIsProcessing(false)
+      alert(error instanceof Error ? error.message : "Upgrade failed")
+    }
   }
-}
+
+  const handleBaggagePayment = async () => {
+    if (!baggagePaymentMethod || !activeDialogTicket) return
+    setIsProcessing(true)
+    try {
+      await addTicketBaggage({
+        ticketId: activeDialogTicket.id,
+        extraCheckedKg,
+        amount: bagCostVND,
+        paymentMethod: baggagePaymentMethod,
+      })
+      await refreshTicketDetails()
+      setExtraBaggagePaidVND(prev => prev + bagCostVND)
+      setIsProcessing(false)
+      setBaggageStep('success')
+    } catch (error) {
+      console.error("Add baggage failed:", error)
+      setIsProcessing(false)
+      alert(error instanceof Error ? error.message : "Add baggage failed")
+    }
+  }
+
+  const handleCancelRequest = async () => {
+    if (!activeDialogTicket) return
+    if (!cancelReason.trim()) {
+      alert("Please provide a cancellation reason")
+      return
+    }
+    setIsProcessing(true)
+    try {
+      await requestTicketCancellation({
+        ticketId: activeDialogTicket.id,
+        reason: cancelReason.trim(),
+      })
+      setIsProcessing(false)
+      setShowCancelDialog(false)
+      alert("Cancellation request submitted. Waiting for manager approval.")
+      router.push('/customer/my-tickets')
+    } catch (error) {
+      console.error("Cancellation request failed:", error)
+      setIsProcessing(false)
+      alert(error instanceof Error ? error.message : "Cancellation request failed")
+    }
+  }
+
+  const renderTicketBlock = (t: TicketDetailResponse, isPartner: boolean = false) => {
+    const tIsExpired = isTicketExpiredCheck(t)
+    const tFare = t.price
+    const tPriceCabin = t.baggage?.priceCabin ?? 0
+    const tCheckedCabin = t.baggage?.checkedCabin ?? ((t.baggage?.checked ?? 0) * 40000)
+    const tTotalPrice = t.totalPrice ?? (tFare + tPriceCabin + tCheckedCabin)
+    const isCancelledRequested = isPartner ? isReturnCancelledRequested : isMainCancelledRequested
+
+    return (
+      <Card key={t.id} className="overflow-hidden border border-gray-200">
+        <CardHeader className="border-b bg-secondary/30 pb-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white">
+                <Plane className={`h-5 w-5 ${isPartner ? '-rotate-135' : 'rotate-45'}`} />
+              </div>
+              <div>
+                <CardTitle className="text-xl">
+                  {isPartner ? 'Chuyến về · ' : 'Chuyến đi · '}{t.flight.flightNumber}
+                </CardTitle>
+                <CardDescription className="text-xs">{t.flight.airline}</CardDescription>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Badge variant="outline">{CLASS_LABELS[t.ticketClass] ?? t.ticketClass}</Badge>
+              <Badge className={tIsExpired && t.status === 'confirmed' ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-accent text-accent-foreground"}>
+                {tIsExpired && t.status === 'confirmed' ? 'Expired' : t.status.charAt(0).toUpperCase() + t.status.slice(1)}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-6 space-y-6">
+          {/* Banners */}
+          {isCancelledRequested && (
+            <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4 flex gap-3 animate-in fade-in duration-300">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+              <div>
+                <h3 className="font-bold text-amber-800 text-sm">Vé đang chờ xử lý hủy</h3>
+                <p className="text-xs text-amber-600">
+                  Yêu cầu hủy vé của bạn đang được quản lý xem xét. Bạn không thể thực hiện các thao tác khác (nâng hạng, mua hành lý...) trong thời gian này.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {t.status === 'pending' && tIsExpired && (
+            <div className="rounded-xl border-2 border-red-200 bg-red-50 p-4 flex gap-3 animate-in fade-in duration-300">
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-bold text-red-800 text-sm">Vé quá hạn chưa thanh toán!</h3>
+                <p className="text-xs text-red-600">Chuyến bay này đã khởi hành. Giao dịch mua vé của bạn không còn hiệu lực thanh toán.</p>
+              </div>
+            </div>
+          )}
+
+          {t.status === 'confirmed' && tIsExpired && (
+            <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4 flex gap-3 animate-in fade-in duration-300">
+              <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+              <div>
+                <h3 className="font-bold text-amber-800 text-sm">Vé máy bay đã quá hạn</h3>
+                <p className="text-xs text-amber-600">
+                  Chuyến bay đã khởi hành lúc {t.flight.departure.time} ngày {t.flight.departure.date}. 
+                  Bạn không thể thay đổi thông tin vé (nâng hạng, mua thêm hành lý hoặc hủy vé).
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Route */}
+          <div className="grid grid-cols-3 gap-4 text-center py-2">
+            <div>
+              <div className="text-3xl font-bold text-[#0b5c66]">{t.flight.departure.code}</div>
+              <div className="text-lg font-semibold mt-0.5">{t.flight.departure.time}</div>
+              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-0.5">
+                <MapPin className="h-3.5 w-3.5" /> {t.flight.departure.city}
+              </div>
+              <div className="text-[10px] text-muted-foreground line-clamp-1">{t.flight.departure.airport}</div>
+            </div>
+            <div className="flex flex-col items-center justify-center">
+              <Clock className="mb-1 h-5 w-5 text-muted-foreground" />
+              <span className="text-sm font-semibold">{t.flight.duration}</span>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="h-px w-10 bg-gray-300" />
+                <ArrowRight className="h-4 w-4 text-[#0b5c66]" />
+                <div className="h-px w-10 bg-gray-300" />
+              </div>
+              <span className="text-[10px] text-muted-foreground mt-1">Direct Flight</span>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-[#0b5c66]">{t.flight.arrival.code}</div>
+              <div className="text-lg font-semibold mt-0.5">{t.flight.arrival.time}</div>
+              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-0.5">
+                <MapPin className="h-3.5 w-3.5" /> {t.flight.arrival.city}
+              </div>
+              <div className="text-[10px] text-muted-foreground line-clamp-1">{t.flight.arrival.airport}</div>
+            </div>
+          </div>
+
+          {/* Details */}
+          <div className="grid gap-3 rounded-xl bg-secondary/20 p-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+            <div>
+              <div className="text-xs text-muted-foreground mb-0.5">Mã đặt chỗ</div>
+              <div className="font-mono font-bold text-[#0b5c66]">{t.bookingRef}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-0.5">Hành khách</div>
+              <div className="font-medium">{t.passengerName}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-0.5">Số ghế</div>
+              <div className="font-bold">{t.seatNumber || '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-0.5">Ngày khởi hành</div>
+              <div className="flex items-center gap-1 font-semibold">
+                <Calendar className="h-3.5 w-3.5 text-gray-500" />
+                {t.flight.departure.date}
+              </div>
+            </div>
+          </div>
+
+          {/* Baggage */}
+          <div className="bg-slate-50 p-4 rounded-xl border">
+            <h4 className="font-bold text-sm text-gray-800 mb-2">Hành lý đi kèm (Baggage Allowance)</h4>
+            <div className="flex gap-6 text-sm text-gray-600">
+              <span className="flex items-center gap-1.5"><Luggage className="h-4 w-4 text-gray-500" /> Cabin: <strong>{t.baggage.cabin} kg</strong></span>
+              <span className="flex items-center gap-1.5"><Luggage className="h-4 w-4 text-gray-500" /> Checked: <strong>{t.baggage.checked} kg</strong></span>
+            </div>
+          </div>
+
+          {/* Price Breakdown */}
+          <div className="border-t pt-4 space-y-2 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Giá vé cơ bản:</span>
+              <span>{formatVND(tFare)} VND</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Hành lý ký gửi:</span>
+              <span>{formatVND(tCheckedCabin)} VND</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Hành lý xách tay:</span>
+              <span>{formatVND(tPriceCabin)} VND</span>
+            </div>
+            <div className="flex justify-between font-bold border-t border-dashed pt-2">
+              <span>Tổng cộng chi tiết:</span>
+              <span className="text-primary">{formatVND(tTotalPrice)} VND</span>
+            </div>
+          </div>
+
+          {/* Action Cards for this Ticket */}
+          {t.status === 'confirmed' && !tIsExpired && !isCancelledRequested && (
+            <div className="grid gap-3 sm:grid-cols-3 border-t pt-4">
+              {t.isUpgraded && (
+                <Card className="p-4 flex flex-col justify-between hover:shadow-md transition-shadow">
+                  <div>
+                    <h5 className="font-bold text-sm flex items-center gap-1.5"><ArrowUpCircle className="h-4 w-4 text-[#0b5c66]" /> Nâng hạng ghế</h5>
+                    <p className="text-xs text-muted-foreground mt-1">Trải nghiệm dịch vụ cao cấp hơn</p>
+                  </div>
+                  <div className="mt-4">
+                    {getAvailableUpgrades(t.ticketClass).length > 0 ? (
+                      <Button onClick={() => openUpgradeDialog(t)} className="w-full text-xs h-9">
+                        Chọn nâng hạng
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center">Hạng ghế cao nhất</p>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              <Card className="p-4 flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div>
+                  <h5 className="font-bold text-sm flex items-center gap-1.5"><Luggage className="h-4 w-4 text-[#0b5c66]" /> Thêm hành lý</h5>
+                  <p className="text-xs text-muted-foreground mt-1">Đặt thêm hành lý ký gửi nhanh chóng</p>
+                </div>
+                <div className="mt-4">
+                  <Button onClick={() => openBaggageDialog(t)} className="w-full text-xs h-9">
+                    Mua hành lý
+                  </Button>
+                </div>
+              </Card>
+
+              {t.isCancelled && (
+                <Card className="p-4 flex flex-col justify-between border-red-100 hover:shadow-md transition-shadow">
+                  <div>
+                    <h5 className="font-bold text-sm flex items-center gap-1.5 text-destructive"><XCircle className="h-4 w-4" /> Yêu cầu hủy vé</h5>
+                    <p className="text-xs text-muted-foreground mt-1">Hủy chỗ và hoàn tiền theo quy định</p>
+                  </div>
+                  <div className="mt-4">
+                    <Button variant="destructive" onClick={() => openCancelDialog(t)} className="w-full text-xs h-9">
+                      Yêu cầu hủy
+                    </Button>
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Determine if booking has pending payment
+  const isPendingPayable = 
+    (mainTicket.status === 'pending' && !isExpired) || 
+    (returnTicket && returnTicket.status === 'pending' && !isReturnExpired);
+
+  const totalBookingPrice = returnTicket ? mainTicket.price + returnTicket.price : mainTicket.price;
 
   return (
     <div className="space-y-6">
@@ -467,169 +847,71 @@ const handleBaggagePayment = async () => {
         </Link>
       </Button>
 
-      {/* Ticket Header */}
-      <Card>
-        <CardHeader className="border-b bg-secondary/30">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary">
-                <Plane className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <CardTitle className="text-xl">{ticket.flight.flightNumber}</CardTitle>
-                <CardDescription>{ticket.flight.airline}</CardDescription>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Badge variant="outline">{CLASS_LABELS[ticket.ticketClass]}</Badge>
-              <Badge className="bg-accent text-accent-foreground">
-                {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
+      {/* Ticket detail block(s) */}
+      <div className="grid gap-6">
+        {renderTicketBlock(mainTicket, false)}
+        
+        {returnTicket && renderTicketBlock(returnTicket, true)}
+      </div>
 
-        <CardContent className="p-6">
-          {/* Flight Route */}
-          <div className="mb-8 grid grid-cols-3 gap-4 text-center">
-            <div>
-              <div className="text-3xl font-bold">{ticket.flight.departure.code}</div>
-              <div className="text-xl">{ticket.flight.departure.time}</div>
-              <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                <MapPin className="h-4 w-4" /> {ticket.flight.departure.city}
+      {/* Unpaid Booking Payment Card */}
+      {isPendingPayable && (
+        <Card className="border-2 border-red-200 shadow-lg overflow-hidden mt-6">
+          <CardHeader className="bg-red-50/50 border-b border-red-100">
+            <CardTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-red-500" /> Thanh toán booking #{mainTicket.bookingRef}
+            </CardTitle>
+            <CardDescription>Chọn phương thức thanh toán để kích hoạt vé của bạn</CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            {/* Selection */}
+            {!qrCodeUrl ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => alert("We are sorry, this payment method is currently not supported.")}
+                    className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 font-semibold ${paymentMethod === 'card' ? 'border-[#0b5c66] bg-[#f0f8fb] text-[#0b5c66]' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <CreditCard className="w-8 h-8" />
+                    Thanh toán bằng Thẻ
+                  </button>
+                  <button
+                    onClick={() => { setPaymentMethod('qr'); handlePendingQRPayment(); }}
+                    className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 font-semibold ${paymentMethod === 'qr' ? 'border-[#0b5c66] bg-[#f0f8fb] text-[#0b5c66]' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <QrCode className="w-8 h-8" />
+                    Quét Mã QR
+                  </button>
+                </div>
+                
+                {paymentMethod === 'card' && (
+                  <Button onClick={handlePendingCardPayment} disabled={isPaying} className="w-full bg-[#0b5c66] hover:bg-[#094a52] h-12 text-base font-bold">
+                    {isPaying ? "Đang xử lý..." : `Xác nhận thanh toán Thẻ (${formatVND(totalBookingPrice)} VND)`}
+                  </Button>
+                )}
               </div>
-              <div className="text-sm text-muted-foreground">{ticket.flight.departure.airport}</div>
-            </div>
-            <div className="flex flex-col items-center justify-center">
-              <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
-              <span className="text-lg font-medium">{ticket.flight.duration}</span>
-              <div className="mt-2 flex items-center gap-2">
-                <div className="h-px w-12 bg-border" />
-                <ArrowRight className="h-5 w-5 text-primary" />
-                <div className="h-px w-12 bg-border" />
-              </div>
-              <span className="mt-1 text-sm text-muted-foreground">Direct Flight</span>
-            </div>
-            <div>
-              <div className="text-3xl font-bold">{ticket.flight.arrival.code}</div>
-              <div className="text-xl">{ticket.flight.arrival.time}</div>
-              <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                <MapPin className="h-4 w-4" /> {ticket.flight.arrival.city}
-              </div>
-              <div className="text-sm text-muted-foreground">{ticket.flight.arrival.airport}</div>
-            </div>
-          </div>
-
-          {/* Ticket Details */}
-          <div className="grid gap-4 rounded-lg bg-secondary/30 p-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <div className="text-sm text-muted-foreground">Booking Reference</div>
-              <div className="font-mono text-lg font-bold">{ticket.bookingRef}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Passenger</div>
-              <div className="text-lg font-medium">{ticket.passengerName}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Seat Number</div>
-              <div className="text-lg font-medium">{ticket.seatNumber}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Travel Date</div>
-              <div className="flex items-center gap-1 text-lg font-medium">
-                <Calendar className="h-4 w-4" />
-                {ticket.flight.departure.date}
-              </div>
-            </div>
-          </div>
-
-          {/* Baggage */}
-          <div className="mt-6">
-            <h3 className="mb-3 font-semibold">Baggage Allowance</h3>
-            <div className="flex gap-6">
-              <div className="flex items-center gap-2">
-                <Luggage className="h-5 w-5 text-muted-foreground" />
-                <span>Cabin: {ticket.baggage.cabin} kg</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Luggage className="h-5 w-5 text-muted-foreground" />
-                <span>Checked: {ticket.baggage.checked} kg</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Price */}
-          <div className="mt-6 border-t pt-6 space-y-2">
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>Ticket fare ({CLASS_LABELS[ticket.ticketClass]})</span>
-              <span>{formatVND(currentBasePrice)} VND</span>
-            </div>
-            {extraBaggagePaidVND > 0 && (
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Extra baggage</span>
-                <span>+{formatVND(extraBaggagePaidVND)} VND</span>
+            ) : (
+              <div className="flex flex-col items-center text-center space-y-4">
+                <p className="text-sm font-semibold text-gray-700">Dùng điện thoại quét mã QR bên dưới để thanh toán đơn hàng</p>
+                <div className="p-4 bg-white rounded-2xl border shadow-sm">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUrl)}`}
+                    alt="QR Code thanh toán"
+                    className="w-48 h-48"
+                  />
+                </div>
+                <div className="flex gap-3 w-full max-w-xs">
+                  <Button variant="outline" onClick={() => { setQrCodeUrl(null); setPaymentMethod(null); }} className="flex-1">
+                    Quay lại
+                  </Button>
+                  <Button asChild className="flex-1 bg-[#0b5c66] hover:bg-[#094a52]">
+                    <a href={qrCodeUrl} target="_blank" rel="noreferrer">Cổng giả lập</a>
+                  </Button>
+                </div>
               </div>
             )}
-            <div className="flex items-center justify-between border-t pt-2">
-              <span className="font-semibold">Total Paid</span>
-              <span className="text-2xl font-bold text-primary">{formatVND(totalPaidVND)} VND</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Action Cards */}
-      {ticket.status === 'confirmed' && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ArrowUpCircle className="h-5 w-5 text-primary" />
-                Upgrade Class
-              </CardTitle>
-              <CardDescription>Upgrade to a better experience</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {availableUpgrades.length > 0 ? (
-                <Button onClick={openUpgradeDialog} className="w-full">
-                  View Upgrade Options
-                </Button>
-              ) : (
-                <p className="text-sm text-muted-foreground">You are already in the highest class</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Luggage className="h-5 w-5 text-primary" />
-                Add Baggage
-              </CardTitle>
-              <CardDescription>Purchase additional baggage</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={openBaggageDialog} className="w-full">
-                Manage Baggage
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <XCircle className="h-5 w-5 text-destructive" />
-                Cancel Ticket
-              </CardTitle>
-              <CardDescription>Request ticket cancellation</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="destructive" onClick={() => setShowCancelDialog(true)} className="w-full">
-                Request Cancellation
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Upgrade Dialog ── */}

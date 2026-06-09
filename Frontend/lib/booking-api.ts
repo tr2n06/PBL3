@@ -52,7 +52,7 @@ export async function getSeatAvailability(
   ticketClass: TicketClass,
 ) {
   const res = await fetch(
-    `http://localhost:5290/api/flights/${flightId}/seats?class=${ticketClass}`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights/${flightId}/seats?class=${ticketClass}`,
     {
       method: "GET",
       credentials: "include",
@@ -84,7 +84,7 @@ export async function searchFlights(params: SearchFlightsParams) {
   if (params.infants !== undefined) query.set("infants", String(params.infants));
 
   const res = await fetch(
-    `http://localhost:5290/api/flights/search?${query.toString()}`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights/search?${query.toString()}`,
     {
       method: "GET",
       credentials: "include",
@@ -100,4 +100,49 @@ export async function searchFlights(params: SearchFlightsParams) {
   }
 
   return res.json() as Promise<FlightApiItem[]>;
+}
+
+export type RoundFlight = {
+  departure: FlightApiItem;
+  arrival: FlightApiItem;
+};
+
+export async function searchRoundFlights(params: SearchFlightsParams) {
+  const query = new URLSearchParams();
+
+  if (params.from) query.set("from", params.from);
+  if (params.to) query.set("to", params.to);
+  if (params.departDate) query.set("departDate", params.departDate);
+  if (params.returnDate) query.set("returnDate", params.returnDate);
+  if (params.tripType) query.set("tripType", params.tripType);
+  if (params.passengers) query.set("passengers", String(params.passengers));
+
+  if (params.adults !== undefined) query.set("adults", String(params.adults));
+  if (params.children !== undefined) query.set("children", String(params.children));
+  if (params.infants !== undefined) query.set("infants", String(params.infants));
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights/search-round?${query.toString()}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    let errorMsg = "Không tìm thấy chuyến bay hợp lệ cho các ngày đã chọn.";
+    try {
+      const json = JSON.parse(text);
+      if (json.error) errorMsg = json.error;
+    } catch {
+      if (text) errorMsg = text;
+    }
+    throw new Error(errorMsg);
+  }
+
+  return res.json() as Promise<RoundFlight[]>;
 }

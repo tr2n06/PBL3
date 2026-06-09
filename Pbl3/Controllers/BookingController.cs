@@ -40,7 +40,7 @@ namespace Pbl3.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                return BadRequest(new { message = ex.ToString()});
             }
         }
 
@@ -49,12 +49,21 @@ namespace Pbl3.Controllers
         {
             try
             {
-                var key = flightService.getKeyFromId(flightId).Result;
+                var key = await flightService.getKeyFromId(flightId);
+                int typeTicket = 2; // default to economy
+                if (!string.IsNullOrEmpty(@class))
+                {
+                    string clsLower = @class.ToLower().Trim();
+                    if (clsLower == "business") typeTicket = 1;
+                    else if (clsLower == "economy") typeTicket = 2;
+                    else if (clsLower == "firstclass" || clsLower == "first class") typeTicket = 3;
+                }
                 var seats = await service.getSeatMap(new SeatRequestDTO
                 {
                     flightcode = key.codeFlight,
-                    arriveDate = key.arriveDate?? DateOnly.FromDateTime(DateTime.Now),
-                    arriveTime = key.arriveTime?? TimeOnly.FromDateTime(DateTime.Now)
+                    departureDate = key.departureDate ?? DateOnly.FromDateTime(DateTime.Now),
+                    departureTime = key.departureTime ?? TimeOnly.FromDateTime(DateTime.Now),
+                    typeTicket = typeTicket
                 });
                 if (seats == null) return NotFound("Flight not found");
                 return Ok(seats);

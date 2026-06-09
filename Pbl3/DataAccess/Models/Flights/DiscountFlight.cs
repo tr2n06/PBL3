@@ -3,16 +3,16 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Pbl3.DataAccess.Models.Flights
 {
-    [Table("DiscountFlights")]
+    [Table("DiscountFlight")]
     public class DiscountFlight
     {
         [Column(TypeName = "varchar(6)")]
         [Required]
         public string codeFlight { get; set; }
         [Required]
-        public DateOnly arriveDate { get; set; }
+        public DateOnly departureDate { get; set; }
         [Required]
-        public TimeOnly arriveTime { get; set; }
+        public TimeOnly departureTime { get; set; }
         [Required]
         public int discountPercentage { get; set; }
         public virtual Flight flight { get; set; }

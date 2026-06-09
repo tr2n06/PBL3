@@ -5,7 +5,7 @@ export async function registerUser(payload: {
   password: string;
   role?: string;
 }) {
-  const res = await fetch("http://localhost:5290/api/auth/register", {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -32,7 +32,7 @@ export async function requestRegisterOtp(payload: {
   purpose: "register";
 }) {
   const res = await fetch(
-    "http://localhost:5290/api/auth/request-otp",
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/request-otp`,
     {
       method: "POST",
       credentials: "include",
@@ -58,7 +58,7 @@ export async function verifyRegisterOtp(payload: {
   purpose: "register";
 }) {
   const res = await fetch(
-    "http://localhost:5290/api/auth/verify-otp",
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/verify-otp`,
     {
       method: "POST",
       credentials: "include",
@@ -83,7 +83,7 @@ export async function resendRegisterOtp(payload: {
   purpose: "register";
 }) {
   const res = await fetch(
-    "http://localhost:5290/api/auth/request-otp",
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/request-otp`,
     {
       method: "POST",
       credentials: "include",

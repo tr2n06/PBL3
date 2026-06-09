@@ -13,9 +13,9 @@ namespace Pbl3.DataAccess.Models.Flights
         [Required]
         public string codeFlight {  get; set; }
         [Required]
-        public DateOnly arriveDate { get; set; }
+        public DateOnly departureDate { get; set; }
         [Required]
-        public TimeOnly arriveTime { get; set; }
+        public TimeOnly departureTime { get; set; }
         [Required]
         public DateOnly landingDate { get; set; }
         [Required]

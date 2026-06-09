@@ -22,7 +22,7 @@ export type PendingProfileUpdate = {
 
 export async function getEmployeeProfile() {
   const res = await fetch(
-    `http://localhost:5290/api/auth/me`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/me`,
     {
       method: "GET",
       credentials: "include",
@@ -40,7 +40,7 @@ export async function getEmployeeProfile() {
 
 export async function getMyPendingProfileUpdate() {
   const res = await fetch(
-    `http://localhost:5290/api/auth/profile-update-requests`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/profile-update-requests`,
     {
       method: "GET",
       credentials: "include",
@@ -64,7 +64,7 @@ export async function submitProfileUpdateRequest(payload: {
   phone?: string;
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/auth/profile-update-requests`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/profile-update-requests`,
     {
       method: "POST",
       credentials: "include",
@@ -87,7 +87,7 @@ export async function changeEmployeePassword(payload: {
   newPasswordConfirm: string;
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/auth/password`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/password`,
     {
       method: "PATCH",
       credentials: "include",

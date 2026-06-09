@@ -4,8 +4,8 @@
     {
         public string codeSeat { get; set; }
         public string codeFlight { get; set; }
-        public DateOnly arriveDate { get; set; }
-        public TimeOnly arriveTime { get; set; }
+        public DateOnly departureDate { get; set; }
+        public TimeOnly departureTime { get; set; }
         public int? codeType { get; set; }
         public Boolean? isBooked { get; set; }
     }

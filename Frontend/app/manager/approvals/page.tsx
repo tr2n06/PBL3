@@ -130,10 +130,17 @@ export default function ApprovalsPage() {
     }
 
     if (request.type === "profile_edit") {
-      const field = String(request.data?.field || request.data?.fieldName || "profile")
-      const oldValue = String(request.data?.oldValue ?? "—")
-      const newValue = String(request.data?.newValue ?? "—")
-      return `Update ${field} from ${oldValue} to ${newValue}`
+      const changes: string[] = []
+      if (request.data?.email && request.data?.email !== request.data?.oldEmail) {
+        changes.push(`Email: ${request.data?.oldEmail || "—"} -> ${request.data?.email}`)
+      }
+      if (request.data?.phone && request.data?.phone !== request.data?.oldPhone) {
+        changes.push(`Phone: ${request.data?.oldPhone || "—"} -> ${request.data?.phone}`)
+      }
+      if (request.data?.address && request.data?.address !== request.data?.oldAddress) {
+        changes.push(`Address: ${request.data?.oldAddress || "—"} -> ${request.data?.address}`)
+      }
+      return changes.length > 0 ? changes.join(", ") : "Cập nhật thông tin cá nhân"
     }
 
     if (request.type === "promotion") {
@@ -227,10 +234,10 @@ export default function ApprovalsPage() {
             Promotions ({promotionCreateRequests.length})
           </TabsTrigger>
           <TabsTrigger value="promotion-cancel">
-            Deal Cancellations ({promotionCancelRequests.length})
+            Deal Cancellations ({cancellationRequests.length})
           </TabsTrigger>
           <TabsTrigger value="cancellations">
-            Cancellations ({cancellationRequests.length})
+            Cancellations ({promotionCancelRequests.length})
           </TabsTrigger>
         </TabsList>
 
@@ -271,11 +278,11 @@ export default function ApprovalsPage() {
         </TabsContent>
 
         <TabsContent value="promotion-cancel" className="space-y-4">
-          {promotionCancelRequests.length === 0 ? (
-            <EmptyState message="No pending promotion cancellation requests" />
+          {cancellationRequests.length === 0 ? (
+            <EmptyState message="No pending cancellation requests" />
           ) : (
             <div className="grid gap-4">
-              {promotionCancelRequests.map((request) => (
+              {cancellationRequests.map((request) => (
                 <RequestCard key={request.id} request={request} />
               ))}
             </div>
@@ -283,11 +290,11 @@ export default function ApprovalsPage() {
         </TabsContent>
 
         <TabsContent value="cancellations" className="space-y-4">
-          {cancellationRequests.length === 0 ? (
-            <EmptyState message="No pending cancellation requests" />
+          {promotionCancelRequests.length === 0 ? (
+            <EmptyState message="No pending promotion cancellation requests" />
           ) : (
             <div className="grid gap-4">
-              {cancellationRequests.map((request) => (
+              {promotionCancelRequests.map((request) => (
                 <RequestCard key={request.id} request={request} />
               ))}
             </div>
@@ -309,39 +316,98 @@ export default function ApprovalsPage() {
 
           {selectedRequest && (
             <div className="space-y-4">
-              <div className="space-y-3 rounded-lg border p-4">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Name</span>
-                  <span className="font-medium">{selectedRequest.requesterName}</span>
-                </div>
+              {selectedRequest.type === "profile_edit" ? (
+                <div className="space-y-3 rounded-lg border p-4">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Name</span>
+                    <span className="font-medium">{selectedRequest.requesterName}</span>
+                  </div>
 
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Role</span>
-                  <Badge variant="outline">
-                    {getRequesterRoleLabel(selectedRequest.requesterRole)}
-                  </Badge>
-                </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Role</span>
+                    <Badge variant="outline">
+                      {getRequesterRoleLabel(selectedRequest.requesterRole)}
+                    </Badge>
+                  </div>
 
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Email</span>
-                  <span>{selectedRequest.requesterEmail}</span>
-                </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Type Approval</span>
+                    <Badge variant="outline">{getTypeLabel(selectedRequest)}</Badge>
+                  </div>
 
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Phone</span>
-                  <span>{String(selectedRequest.data?.phone || "—")}</span>
-                </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Date Changed</span>
+                    <span>{new Date(selectedRequest.createdAt).toLocaleString()}</span>
+                  </div>
 
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Type Approval</span>
-                  <Badge variant="outline">{getTypeLabel(selectedRequest)}</Badge>
-                </div>
+                  {/* Email change */}
+                  {!!selectedRequest.data?.email && (
+                    <div className="flex justify-between border-t pt-2 mt-2">
+                      <span className="text-sm text-muted-foreground">Email</span>
+                      <span className="text-right">
+                        <span className="line-through text-muted-foreground mr-2">{String(selectedRequest.data?.oldEmail || "—")}</span>
+                        <span className="font-semibold text-primary">&rarr; {String(selectedRequest.data?.email)}</span>
+                      </span>
+                    </div>
+                  )}
 
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Date Changed</span>
-                  <span>{new Date(selectedRequest.createdAt).toLocaleString()}</span>
+                  {/* Phone change */}
+                  {!!selectedRequest.data?.phone && (
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-sm text-muted-foreground">Phone</span>
+                      <span className="text-right">
+                        <span className="line-through text-muted-foreground mr-2">{String(selectedRequest.data?.oldPhone || "—")}</span>
+                        <span className="font-semibold text-primary">&rarr; {String(selectedRequest.data?.phone)}</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Address change */}
+                  {!!selectedRequest.data?.address && (
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-sm text-muted-foreground">Address</span>
+                      <span className="text-right max-w-[70%] break-all">
+                        <span className="line-through text-muted-foreground mr-2 block text-xs">{String(selectedRequest.data?.oldAddress || "—")}</span>
+                        <span className="font-semibold text-primary block text-sm">&rarr; {String(selectedRequest.data?.address)}</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-3 rounded-lg border p-4">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Name</span>
+                    <span className="font-medium">{selectedRequest.requesterName}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Role</span>
+                    <Badge variant="outline">
+                      {getRequesterRoleLabel(selectedRequest.requesterRole)}
+                    </Badge>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Email</span>
+                    <span>{selectedRequest.requesterEmail}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Phone</span>
+                    <span>{String(selectedRequest.data?.phone || "—")}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Type Approval</span>
+                    <Badge variant="outline">{getTypeLabel(selectedRequest)}</Badge>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Date Changed</span>
+                    <span>{new Date(selectedRequest.createdAt).toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Detail Request</Label>

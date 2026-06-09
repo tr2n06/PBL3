@@ -54,7 +54,7 @@ export type StatisticsResponse = {
 
 export async function getStatistics(period: string) {
   const res = await fetch(
-    `http://localhost:5290/api/statistics?period=${period}`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/statistics?period=${period}`,
     {
       method: "GET",
       credentials: "include",
@@ -74,7 +74,7 @@ export async function getStatistics(period: string) {
 
 export async function blockCustomer(customerId: string) {
   const res = await fetch(
-    `http://localhost:5290/api/auth/${customerId}/block`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/${customerId}/block`,
     {
       method: "PATCH",
       credentials: "include",

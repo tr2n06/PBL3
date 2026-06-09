@@ -49,6 +49,7 @@ export interface Flight {
   status: "scheduled" | "boarding" | "departed" | "arrived" | "cancelled";
   discount?: number;
   isPromotion?: boolean;
+  priceFlight?: number;
 }
 
 // Ticket Types
@@ -80,7 +81,7 @@ export type ApprovalType = "cancellation" | "promotion" | "profile_edit";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
 export interface ApprovalRequest {
-  id: String;
+  id: string;
   type: ApprovalType;
   requesterId: number;
   requesterName: string;

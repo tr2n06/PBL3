@@ -85,7 +85,7 @@ const SEAT_SURCHARGE: Record<SeatType, number> = {
   middle: 0,
 };
 function calculateEarnedPoints(totalPrice: number) {
-  return totalPrice > 5_000_000 ? 100 : 0;
+  return Math.floor(totalPrice / 1000000);
 }
 function formatVND(n: number) {
   return new Intl.NumberFormat("vi-VN").format(n);
@@ -105,6 +105,10 @@ export default function CustomerPaymentPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [bookingRef, setBookingRef] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"checkout" | "qr-display">("checkout");
+
   useEffect(() => {
     const saved = localStorage.getItem("tempBooking");
     if (saved) {
@@ -119,6 +123,67 @@ export default function CustomerPaymentPage() {
     }
   }, [router]);
 
+  useEffect(() => {
+    if (viewMode !== "qr-display" || !bookingRef) return;
+
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/status/${bookingRef}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === "confirmed" && active) {
+            clearInterval(interval);
+            setBooked((prev) =>
+              prev ? { ...prev, bookingRef: bookingRef } : prev
+            );
+            localStorage.removeItem("tempBooking");
+            setIsSuccess(true);
+            setViewMode("checkout");
+          }
+        }
+      } catch (err) {
+        console.error("Status polling failed:", err);
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [viewMode, bookingRef]);
+
+  const handleCheckPaymentStatus = async () => {
+    if (!bookingRef) return;
+    setIsProcessing(true);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/status/${bookingRef}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === "confirmed") {
+          setBooked((prev) =>
+            prev ? { ...prev, bookingRef: bookingRef } : prev
+          );
+          localStorage.removeItem("tempBooking");
+          setIsSuccess(true);
+          setViewMode("checkout");
+        } else {
+          alert("Giao dịch vẫn đang chờ thanh toán. Vui lòng quét mã QR hoặc hoàn tất thanh toán trên cổng.");
+        }
+      } else {
+        alert("Không thể kiểm tra trạng thái thanh toán.");
+      }
+    } catch (err) {
+      alert("Đã xảy ra lỗi khi kiểm tra.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleCompletePayment = async () => {
     if (!paymentMethod || !booked) return;
 
@@ -126,7 +191,7 @@ export default function CustomerPaymentPage() {
 
     try {
       const earnedPoints = calculateEarnedPoints(booked.totalPrice);
-      await completePayment({
+      const res = await completePayment({
         bookingRef: booked.bookingRef,
         flightId: booked.flight.id,
         ticketClasses: booked.ticketClasses,
@@ -142,13 +207,18 @@ export default function CustomerPaymentPage() {
         pointsEarned: earnedPoints,
         paymentMethod,
       });
-      setBooked((prev) =>
-        prev ? { ...prev, pointsEarned: earnedPoints } : prev,
-      );
 
-      localStorage.removeItem("tempBooking");
-
-      setIsSuccess(true);
+      if (paymentMethod === "qr" && res.qrLink) {
+        setQrCodeUrl(res.qrLink);
+        setBookingRef(res.bookingRef);
+        setViewMode("qr-display");
+      } else {
+        setBooked((prev) =>
+          prev ? { ...prev, pointsEarned: earnedPoints, bookingRef: res.bookingRef } : prev,
+        );
+        localStorage.removeItem("tempBooking");
+        setIsSuccess(true);
+      }
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error("Complete payment failed:", error);
@@ -323,6 +393,84 @@ export default function CustomerPaymentPage() {
     );
   }
 
+  if (viewMode === "qr-display") {
+    const theme = CLASS_THEME[booked.ticketClasses[0]];
+    const qrImageSrc = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrCodeUrl || "")}`;
+
+    return (
+      <div className="max-w-2xl mx-auto py-10 px-4 space-y-6 animate-in fade-in duration-300">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">QR Payment Checkout</h1>
+          <p className="text-gray-500">Scan this code using your mobile banking or wallet application</p>
+        </div>
+
+        <Card className="overflow-hidden border-0 shadow-2xl rounded-3xl bg-white">
+          <div className="p-8 space-y-6 flex flex-col items-center">
+            <div className="w-full flex justify-between items-center bg-[#d2eaf4] rounded-2xl p-5 border border-[#b2d9e9]">
+              <div>
+                <span className="text-xs font-bold text-[#0b5c66] uppercase block">Booking Reference</span>
+                <span className="font-mono font-black text-2xl text-gray-800">{bookingRef}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-bold text-[#0b5c66] uppercase block">Total Amount</span>
+                <span className="font-black text-2xl text-[#0b5c66]">{formatVND(booked.totalPrice)} VND</span>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 shadow-inner relative group">
+              <img
+                src={qrImageSrc}
+                alt="Payment QR Code"
+                className="w-64 h-64 mx-auto rounded-2xl shadow-md border-4 border-white"
+              />
+              <div className="absolute inset-0 bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center rounded-3xl">
+                <Badge className="bg-[#0b5c66] text-white px-4 py-2 font-bold flex gap-1 items-center">
+                  <QrCode className="w-4 h-4 animate-pulse" /> Double Tap to Expand
+                </Badge>
+              </div>
+            </div>
+
+            <div className="text-center space-y-2 w-full max-w-sm">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center justify-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                Waiting for mobile payment...
+              </p>
+              <p className="text-sm text-gray-500">
+                You can also directly complete this booking using the mock portal in your browser:
+              </p>
+            </div>
+
+            <div className="flex gap-4 w-full">
+              <Button
+                variant="outline"
+                className="flex-1 h-14 rounded-2xl font-black text-lg border-2 border-gray-100 shadow-sm"
+                asChild
+              >
+                <a href={qrCodeUrl || "#"} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
+                  <Landmark className="w-5 h-5 text-[#0b5c66]" /> Open Mock Portal
+                </a>
+              </Button>
+              <Button
+                disabled={isProcessing}
+                onClick={handleCheckPaymentStatus}
+                className="flex-1 h-14 rounded-2xl bg-[#0b5c66] hover:bg-[#08424a] text-white font-black text-lg shadow-xl shadow-[#c3d4e8]"
+              >
+                {isProcessing ? "Verifying..." : "Verify Payment"}
+              </Button>
+            </div>
+
+            <button
+              onClick={() => setViewMode("checkout")}
+              className="text-xs font-bold text-gray-400 uppercase hover:text-[#0b5c66] transition-colors"
+            >
+              Cancel & Change Payment Method
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto py-10 px-4">
       <div className="mb-10 text-center">
@@ -343,7 +491,7 @@ export default function CustomerPaymentPage() {
           <div className="grid sm:grid-cols-2 gap-4">
             {/* Card Payment */}
             <button
-              onClick={() => setPaymentMethod("card")}
+              onClick={() => alert("We are sorry, this payment method is currently not supported.")}
               className={`relative group flex flex-col items-center p-6 rounded-3xl border-2 transition-all duration-300 bg-white shadow-sm hover:shadow-xl ${
                 paymentMethod === "card"
                   ? "border-[#0b5c66] ring-4 ring-[#0b5c66]/5"
@@ -453,7 +601,7 @@ export default function CustomerPaymentPage() {
                       <span className="font-bold text-gray-700">
                         {formatVND(
                           booked.extraBaggageKg.reduce((a, b) => a + b, 0) *
-                            30000,
+                            40000,
                         )}{" "}
                         VND
                       </span>

@@ -1,0 +1,25 @@
+INSERT INTO [Pbl3Db].[dbo].[City]
+    ([abbreviatedName], [fullName], [airplane])
+VALUES
+    ('HAN', 'Ha Noi', 'Noi Bai'),
+    ('HPH', 'Hai Phong', 'Cat Bi'),
+    ('VDO', 'Quang Ninh', 'Van Don'),
+    ('DIN', 'Dien Bien', 'Dien Bien Phu'),
+    ('THD', 'Thanh Hoa', 'Tho Xuan'),
+    ('VDH', 'Quang Binh', 'Dong Hoi'),
+    ('VII', 'Nghe An', 'Vinh'),
+    ('HUI', 'Thua Thien Hue', 'Phu Bai'),
+    ('DAD', 'Da Nang', 'Da Nang'),
+    ('VCL', 'Quang Nam', 'Chu Lai'),
+    ('DLI', 'Lam Dong', 'Lien Khuong'),
+    ('UIH', 'Binh Dinh', 'Phu Cat'),
+    ('TBB', 'Phu Yen', 'Tuy Hoa'),
+    ('CXR', 'Khanh Hoa', 'Cam Ranh'),
+    ('PXU', 'Gia Lai', 'Pleiku'),
+    ('BMV', 'Dak Lak', 'Buon Ma Thuot'),
+    ('SGN', 'Ho Chi Minh City', 'Tan Son Nhat'),
+    ('VCA', 'Can Tho', 'Can Tho'),
+    ('VKG', 'Kien Giang', 'Rach Gia'),
+    ('CAH', 'Ca Mau', 'Ca Mau'),
+    ('VCS', 'Ba Ria - Vung Tau', 'Con Dao'),
+    ('PQC', 'Kien Giang', 'Phu Quoc');

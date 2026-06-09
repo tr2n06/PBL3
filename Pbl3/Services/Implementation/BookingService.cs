@@ -1,4 +1,4 @@
-﻿using Pbl3.DTOs.Bookings;
+using Pbl3.DTOs.Bookings;
 using Pbl3.Services.Interface;
 using Pbl3.Repositories.Interface;
 
@@ -39,7 +39,7 @@ namespace Pbl3.Services.Implementation
                 code = "";
                 for (int i = 0; i < 8; i++)
                 {
-                    code += r.Next(0, 64).ToString();
+                    code += arr[r.Next(0, arr.Length)];
                 }
             } while (await repository.existedCodeBooking(code));
 

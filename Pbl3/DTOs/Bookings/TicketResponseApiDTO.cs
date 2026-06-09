@@ -17,11 +17,17 @@ namespace Pbl3.DTOs.Bookings
         public BaggageApiDTO baggage { get; set; }
 
         public FlightApiDTO flight { get; set; }
+
+        public decimal price { get; set; }
+        public bool isCancelled { get; set; }
+        public bool isUpgraded { get; set; }
     }
     public class BaggageApiDTO
     {
         public int cabin { get; set; }
-        public int checkedBaggage { get; set; }
+        public int @checked { get; set; }
+        public decimal priceCabin { get; set; }
+        public decimal checkedCabin { get; set; }
     }
     public class FlightApiDTO
     {

@@ -9,6 +9,7 @@ namespace Pbl3.Repositories.Interface
         public Task<BaggageResponseDTO> getBaggage(BaggageRequestDTO dto);
         public Task<List<BaggageResponseDTO>> getBaggageByTicketCode(string codeTicket);
         public Task<Boolean> haveNotPaidBaggage(string codeTicket); // Kiểm tra xem có baggage nào chưa được thanh toán hay không, nếu có thì không cho phép đặt thêm baggage 
-        public Task<int> getNumberOfBaggage(string codeTicket);
+        public Task<int> getNumberOfCheckedBaggage(string codeTicket);
+        public Task<int> getNumberOfCabinBaggage(string codeTicket);
     }
 }

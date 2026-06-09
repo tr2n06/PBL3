@@ -192,7 +192,7 @@ namespace Pbl3.Controllers
             try
             {
                 await service.BlockCustomer(customerId);
-                return Ok();
+                return Ok(new { success = true, message = "Blocked successfully" });
             }
             catch (Exception ex)
             {
@@ -200,6 +200,7 @@ namespace Pbl3.Controllers
             }
         }
         [HttpGet("by-phone")]
+        [HttpGet("/api/customers/by-phone")]
         public async Task<IActionResult> GetByPhone([FromQuery] string phone)
         {
             try
@@ -240,7 +241,7 @@ namespace Pbl3.Controllers
                             userId = idUser,
                             fullName = p.name,
                             gender = p.gender,
-                            dateOfBirth = p.dateOfBirth?.ToString("dd/MM/yyyy"),
+                            dateOfBirth = p.dateOfBirth?.ToString("yyyy-MM-dd"),
                             address = p.address ?? "",
                             nationalId = "+84",
                             availablePoints = p.pointReward,
@@ -258,7 +259,7 @@ namespace Pbl3.Controllers
                             fullName = u.name,
                             gender = u.gender,
                             role = "Staff",
-                            dateOfBirth = u.dateOfBirth?.ToString("dd/MM/yyyy"),
+                            dateOfBirth = u.dateOfBirth?.ToString("yyyy-MM-dd"),
                             address = u.address ?? "",
                             nationalId = "+84",
                             email = u.email,
@@ -273,7 +274,7 @@ namespace Pbl3.Controllers
                             userId = idUser,
                             fullName = a.name,
                             gender = a.gender,
-                            dateOfBirth = a.dateOfBirth.ToString("dd/MM/yyyy"),
+                            dateOfBirth = a.dateOfBirth.ToString("yyyy-MM-dd"),
                             address = a.address ?? "",
                             role = "Manager",
                             nationalId = "+84",
@@ -283,43 +284,34 @@ namespace Pbl3.Controllers
                             createdAt = a.createdAt.ToString("dd/MM/yyyyHH:mm:ss")
                         });
                     default:
-                        return Unauthorized("Không tìm thấy cookie hoặc cookie đã hết hạn");
+                        return Unauthorized(new { message = "Không tìm thấy cookie hoặc cookie đã hết hạn"});
                 }
                 ;
             }
-            return Unauthorized("Không tìm thấy cookie hoặc cookie đã hết hạn");
+            return Unauthorized(new { message = "Không tìm thấy cookie hoặc cookie đã hết hạn"});
         }
         [HttpPatch("me")]
-        public async Task<IActionResult> UpdateMe([FromBody] dynamic payload)
-        {
-            // 1. Lấy userId từ JWT cookie
-            try
+        public async Task<IActionResult> UpdateMe(UpdateUserDTO dto)
+        { 
+            if (Request.Cookies.TryGetValue("jwt", out string token))
             {
-                var userIdClaim = User.FindFirst("id")?.Value;
-
-                if (userIdClaim == null) return Unauthorized("Missing user");
-
-                if (!int.TryParse(userIdClaim, out int userId)) return BadRequest("Invalid user id");
-                // 3. Lấy data từ body
-                string? fullName = payload.fullName;
-                string? phone = payload.phone;
-
-                UpdateUserDTO dto = new UpdateUserDTO();
-                dto.id = userId;
-                dto.name = fullName;
-                dto.phone = phone;
-
-                await service.updateUser(dto);
-
-                return Ok(new
+                try
                 {
-                    message = "Update profile success"
-                });
+                    var handler = new JwtSecurityTokenHandler();
+                    var jwt = handler.ReadJwtToken(token);
+
+                    var id = jwt.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
+                    if (id == null) return BadRequest(new { message = "Can't find this user"});
+                    dto.id = int.Parse(id);
+                    await service.updateUser(dto);
+                    return Ok(new { message = "Successfull"});
+                }
+                catch (Exception e)
+                {
+                    return BadRequest(e.ToString());
+                }
             }
-            catch (Exception e)
-            {
-                return BadRequest(e.ToString());
-            }
+            else return BadRequest(new { message = "Can't find this user"});
         }
         [HttpPost("profile-update-requests")]
         public async Task<IActionResult> SubmitUpdateRequest(StaffRequestDTO dto)
@@ -333,19 +325,20 @@ namespace Pbl3.Controllers
                     var jwt = handler.ReadJwtToken(token);
 
                     var id = jwt.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
-                    if (id == null) return BadRequest("Can't find this user");
+                    if (id == null) return BadRequest(new { message = "Can't find this user"});
                     dto.id = int.Parse(id);
                     var type = jwt.Claims.FirstOrDefault(c => c.Type == "type")?.Value;
-                    if (type == "Staff") return BadRequest("Can't find this user");
+                    if (type != "Staff") return BadRequest(new { message = "Can't find this user"});
                     await requestService.insertRequest(dto);
-                    return Ok();
+                    await service.updateStateUser(int.Parse(id), "pending");
+                    return Ok(new { message = "Successful"});
                 }
                 catch (Exception e)
                 {
-                    return BadRequest(e.ToString());
+                    return BadRequest(new { message = e.ToString()});
                 }
             }
-            else return BadRequest("Can't find this user");
+            else return BadRequest(new { message = "Can't find this user"});
         }
         [HttpGet("profile-update-requests")]
         public async Task<ActionResult<StaffRequestResponseDTO>> getRequest()
@@ -359,18 +352,20 @@ namespace Pbl3.Controllers
                     var jwt = handler.ReadJwtToken(token);
 
                     var id = jwt.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
-                    if (id == null) return BadRequest("Can't find this user");
+                    if (id == null) return BadRequest(new { message = "Can't find this user"});
                     int userId = int.Parse(id);
                     var type = jwt.Claims.FirstOrDefault(c => c.Type == "type")?.Value;
-                    if (type == "Staff") return BadRequest("Can't find this user");
-                    return Ok(await requestService.getRequest(userId));
+                    if (type != "Staff") return BadRequest(new { message = "Can't find this user"});
+                    var result = await requestService.getRequest(userId);
+                    if (result == null) return NotFound();
+                    return Ok(result);
                 }
                 catch (Exception e)
                 {
                     return BadRequest(e.ToString());
                 }
             }
-            else return BadRequest("Can't find this user");
+            else return BadRequest(new { message = "Can't find this user"});
         }
         [HttpPatch("password")]
         public async Task<IActionResult> ChangePassword([FromBody] dynamic payload)
@@ -380,15 +375,15 @@ namespace Pbl3.Controllers
             {
                 var userIdClaim = User.FindFirst("id")?.Value;
 
-                if (userIdClaim == null) return Unauthorized("Missing user");
+                if (userIdClaim == null) return Unauthorized(new { message = "Missing user"});
 
-                if (!int.TryParse(userIdClaim, out int userId)) return BadRequest("Invalid user id");
+                if (!int.TryParse(userIdClaim, out int userId)) return BadRequest(new { message = "Invalid user id"});
 
                 string currentPassword = payload.currentPassword;
                 string newPassword = payload.newPassword;
                 string newPasswordConfirm = payload.newPasswordConfirm;
 
-                if (newPassword != newPasswordConfirm) return BadRequest("Password confirm not match");
+                if (newPassword != newPasswordConfirm) return BadRequest(new { message = "Password confirm not match"});
 
                 await service.updatePassword(userId, currentPassword, newPassword);
 
@@ -399,7 +394,7 @@ namespace Pbl3.Controllers
             }
             catch (Exception e)
             {
-                return BadRequest(e.ToString());
+                return BadRequest(new { message = e.ToString()});
             }
         }
         [HttpGet("employees")]
@@ -409,6 +404,8 @@ namespace Pbl3.Controllers
             {
                 var staffs = await service.getAllStaffs();
                 var result = new List<StaffResponseDTO>();
+
+                //Console.WriteLine("Số lượng: " + staffs.Count);
 
                 foreach (var s in staffs)
                 {
@@ -423,6 +420,8 @@ namespace Pbl3.Controllers
                         nationalId = "+84",
                         dateOfBirth = s.dateOfBirth?.ToString("yyyy-MM-dd"),
                         status = s.status,
+                        role = "employee",
+                        createdAt = s.createdAt.ToString("yyyy-MM-dd")
                     });
                 }
 
@@ -430,34 +429,34 @@ namespace Pbl3.Controllers
             }
             catch (Exception e)
             {
-                return BadRequest("Invalid");
+                return BadRequest(new { message = "Invalid"});
             }
         }
-        [HttpPatch("{id}/block")]
-        public async Task<IActionResult> BlockEmployee(int id)
+        [HttpPatch("employees/{employeeId}/block")]
+        public async Task<IActionResult> BlockEmployee(int employeeId)
         {
             try
             {
-                await service.updateStateUser(id, "blocked");
+                await service.updateStateUser(employeeId, "blocked");
                 return Ok(new { message = "Blocked successfully" });
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                return BadRequest(e.ToString());
+                return BadRequest(new { message = e.ToString()});
             }
         }
 
-        [HttpPatch("{id}/unblock")]
-        public async Task<IActionResult> UnblockEmployee(int id)
+        [HttpPatch("employees/{employeeId}/unblock")]
+        public async Task<IActionResult> UnblockEmployee(int employeeId)
         {
             try
             {
-                await service.updateStateUser(id, "active");
+                await service.updateStateUser(employeeId, "active");
                 return Ok(new { message = "Blocked successfully" });
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                return BadRequest(e.ToString());
+                return BadRequest(new { message = e.ToString()});
             }
         }
 
@@ -474,7 +473,7 @@ namespace Pbl3.Controllers
             };
             var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(
                 claims: claims,
-                expires: DateTime.Now.AddHours(1),
+                expires: DateTime.Now.AddHours(3),
                 signingCredentials: creds
             );
             return new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().WriteToken(token);

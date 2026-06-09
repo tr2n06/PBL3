@@ -1,0 +1,13 @@
+[2026-06-05 17:48:05] ERROR in CompletePayment: System.Exception: Database error: An error occurred while saving the entity changes. See the inner exception for details.
+   at Pbl3.Services.Implementation.TicketService.insertTicket(TicketRequestDTO dto) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\TicketService.cs:line 31
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 175
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-05 17:55:23] ERROR in CompletePayment: System.InvalidOperationException: Seat 1A is already booked on flight VN0002 at 06/06/2026 7:05 SA. Please select a different seat.
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 182
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-05 17:55:31] ERROR in CompletePayment: System.InvalidOperationException: Seat 1A is already booked on flight VN0002 at 06/06/2026 7:05 SA. Please select a different seat.
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 182
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------

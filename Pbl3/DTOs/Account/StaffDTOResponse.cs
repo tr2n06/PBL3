@@ -12,5 +12,6 @@ namespace Pbl3.DTOs.Account
         public string? dateOfBirth { get; set; }
         public string status { get; set; }
         public string role { get; set; } = "Staff";
+        public string createdAt { get;set; }
     }
 }

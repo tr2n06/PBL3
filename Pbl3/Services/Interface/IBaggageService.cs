@@ -9,8 +9,9 @@ namespace Pbl3.Services.Interface
         public Task deleteBaggage(BaggageRequestDTO dto);
         public Task<BaggageResponseDTO> getBaggage(BaggageRequestDTO dto);
         public Task<List<BaggageResponseDTO>> getBaggageByTicketCode(string codeTicket);
-        public Task<int> getSumOfBaggageByTicketCode(string code);
         public Task<Boolean> haveNotPaidBaggage(string codeTicket);
         public Task<string> getKey(string codeTicket);
+        public Task<int> getNumberOfCheckedBaggage(string codeTicket);
+        public Task<int> getNumberOfCabinBaggage(string codeTicket);
     }
 }

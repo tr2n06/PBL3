@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -33,10 +33,12 @@ import type { Flight, TicketClass } from "@/lib/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type SeatType = "window" | "aisle" | "middle";
+type GenderType = "male" | "female" | "other";
 type ModalView = "flight-detail" | "configure" | "login-prompt" | "info" | "summary";
 
 interface PassengerInfo {
   title: string;
+  gender: GenderType;
   firstName: string;
   middleName: string;
   lastName: string;
@@ -50,7 +52,8 @@ interface PassengerInfo {
 
 function emptyPassenger(): PassengerInfo {
   return {
-    title: "Mr",
+    title: "",
+    gender: "male",
     firstName: "",
     middleName: "",
     lastName: "",
@@ -566,7 +569,7 @@ export function GuestBookingModal({
     ? chosenTypes.reduce((s, t) => s + SEAT_SURCHARGE[t], 0)
     : 0;
   const totalBase = basePrices.reduce((a, b) => a + b, 0);
-  const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 30_000, 0);
+  const baggageTotal = extraBaggageKg.reduce((s, kg) => s + kg * 40_000, 0);
   const grandTotal = totalBase + totalSurcharge + baggageTotal;
 
   const loadSeatAvailability = async (flightId: string, tClass: TicketClass) => {
@@ -1288,21 +1291,19 @@ export function GuestBookingModal({
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                       <div className="space-y-1">
                         <Label>
-                          Title <span className="text-red-500">*</span>
+                          Gender <span className="text-red-500">*</span>
                         </Label>
                         <Select
-                          value={passForms[idx]?.title ?? "Mr"}
-                          onValueChange={(v) => updatePassenger(idx, "title", v)}
+                          value={passForms[idx]?.gender ?? "male"}
+                          onValueChange={(v) => updatePassenger(idx, "gender", v as GenderType)}
                         >
                           <SelectTrigger className="h-10">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {["Mr", "Mrs", "Ms", "Dr", "Prof"].map((t) => (
-                              <SelectItem key={t} value={t}>
-                                {t}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1587,6 +1588,7 @@ export function GuestBookingModal({
                       <p className="text-[10px] font-bold uppercase tracking-widest text-[#1a3557]">
                         Extra Checked Baggage
                       </p>
+                      <span className="text-[9px] text-gray-500 font-normal normal-case -mt-1 block">(additional checked baggage kilograms to purchase)</span>
                       <div className="flex items-center gap-2">
                         <Button
                           type="button"
@@ -1624,7 +1626,7 @@ export function GuestBookingModal({
                       </div>
                       {extraBaggageKg[i] > 0 && (
                         <p className="text-[11px] font-bold text-[#1e4069]">
-                          +{formatVND(extraBaggageKg[i] * 30_000)} VND
+                          +{formatVND(extraBaggageKg[i] * 40_000)} VND
                         </p>
                       )}
                     </div>

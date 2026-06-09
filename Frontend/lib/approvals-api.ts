@@ -2,7 +2,7 @@ import type { ApprovalRequest } from "@/lib/types";
 
 export async function getPendingApprovalRequests() {
   const res = await fetch(
-    `http://localhost:5290/api/approvals?status=pending`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/approvals?status=pending`,
     {
       method: "GET",
       credentials: "include",
@@ -22,7 +22,7 @@ export async function getPendingApprovalRequests() {
 
 export async function approveApprovalRequest(requestId: string) {
   const res = await fetch(
-    `http://localhost:5290/api/approvals/${requestId}/approve`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/approvals/${requestId}/approve`,
     {
       method: "PATCH",
       credentials: "include",
@@ -45,7 +45,7 @@ export async function rejectApprovalRequest(
   reason: string
 ) {
   const res = await fetch(
-    `http://localhost:5290/api/approvals/${requestId}/reject`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/approvals/${requestId}/reject`,
     {
       method: "PATCH",
       credentials: "include",

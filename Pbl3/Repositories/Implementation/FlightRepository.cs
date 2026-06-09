@@ -1,4 +1,4 @@
-﻿using Pbl3.DataAccess.Data;
+using Pbl3.DataAccess.Data;
 using Pbl3.DTOs.Flight;
 using Pbl3.DTOs.Others;
 using Pbl3.DTOs.Bookings;
@@ -18,15 +18,18 @@ namespace Pbl3.Repositories.Implementation
         }
         public async Task insertFlight(CreateFlightDTO dto)
         {
+
+            Console.WriteLine(dto.flightNumber);
+            //
             await context.Flight.AddAsync(new Flight
             {
                 codeFlight = dto.flightNumber ?? "",
-                arriveDate = dto.arriveDate,
-                arriveTime = dto.arriveTime,
-                landingDate = dto.departureDate,
-                landingTime = dto.departureTime,
+                departureDate = DateOnly.Parse(dto.departureDate),
+                departureTime = TimeOnly.Parse(dto.departureTime),
+                landingDate = DateOnly.Parse(dto.arrivalDate),
+                landingTime = TimeOnly.Parse(dto.arrivalTime),
                 status = "scheduled",
-                price = dto.price ?? 0
+                price = dto.price ?? 500000
             });
             await context.SaveChangesAsync();
         }
@@ -35,24 +38,42 @@ namespace Pbl3.Repositories.Implementation
             await context.DiscountFlight.AddAsync(new DiscountFlight
             {
                 codeFlight = dto.codeFlight,
-                arriveDate = dto.arriveDate,
-                arriveTime = dto.arriveTime,
-                discountPercentage = dto.discount ?? 0
+                departureDate = DateOnly.Parse(dto.departureDate),
+                departureTime = TimeOnly.Parse(dto.departureTime),
+                discountPercentage = dto.discount ?? 1
             });
             await context.SaveChangesAsync();
         }
         public async Task updateFlight(UpdateFlightDTO dto, FlightSearchDTO key)
         {
             var flight = await (from f in context.Flight
-                                where key.codeFlight == f.codeFlight && key.arriveDate == f.arriveDate && key.arriveTime == f.arriveTime
+                                where key.codeFlight == f.codeFlight && key.departureDate == f.departureDate && key.departureTime == f.departureTime
                                 select f).FirstOrDefaultAsync<Flight>();
-            flight.arriveDate = dto.arriveDate;
-            flight.arriveTime = dto.arriveTime;
-            flight.landingDate = dto.departureDate;
-            flight.landingTime = dto.departureTime;
-            if (dto.price.HasValue)
+            if (flight == null) throw new Exception("Cannot find this flight");
+
+            if (dto.departureDate != null)
             {
-                flight.price = dto.price.Value;
+                flight.departureDate = DateOnly.Parse(dto.departureDate);
+            }
+            if (dto.departureTime != null)
+            {
+                flight.departureTime = TimeOnly.Parse(dto.departureTime);
+            }
+            if (dto.arrivalDate != null)
+            {
+                flight.landingDate = DateOnly.Parse(dto.arrivalDate);
+            }
+            if (dto.arrivalTime != null)
+            {
+                flight.landingTime = TimeOnly.Parse(dto.arrivalTime);
+            }
+            if (dto.priceFlight.HasValue)
+            {
+                flight.price = dto.priceFlight.Value;
+            }
+            if (dto.status != null)
+            {
+                flight.status = dto.status;
             }
             // if (dto.isPromotion.HasValue)
             // {
@@ -62,134 +83,184 @@ namespace Pbl3.Repositories.Implementation
         }
         public async Task<FlightDTO> getFlight(FlightSearchDTO dto)
         {
-            var flight = await (from f in context.Flight
-                                where dto.codeFlight == f.codeFlight && dto.arriveDate == f.arriveDate && dto.arriveTime == f.arriveTime
-                                select new FlightDTO
-                                {
-                                    flightNumber = f.codeFlight,
-                                    arrival = new LocationDTO
-                                    {
-                                        date = f.arriveDate.ToString("dd/MM/yyyy"),
-                                        time = f.arriveTime.ToString(@"hh\:mm\:ss")
-                                    },
-                                    departure = new LocationDTO
-                                    {
-                                        date = f.landingDate.ToString("dd/MM/yyyy"),
-                                        time = f.landingTime.ToString(@"hh\:mm\:ss")
-                                    },
-                                    price = new PriceDTO
-                                    {
-                                        economy = f.price,
-                                        bussiness = f.price,
-                                        firstClass = f.price
-                                    },
-                                    isPromotion = (f.promotion == null) ? false : true,
-                                    status = f.status
-                                }).FirstOrDefaultAsync<FlightDTO>();
-            return flight;
+            var f = await context.Flight
+                                       .Where(f => f.codeFlight == dto.codeFlight && f.departureDate == dto.departureDate && f.departureTime == dto.departureTime)
+                                       .Select(f => f)
+                                       .FirstOrDefaultAsync();
+
+            if (f == null) throw new Exception("Can't find this flight");
+
+            var result = new FlightDTO
+            {
+                flightNumber = f.codeFlight,
+
+                departure = new LocationDTO
+                {
+                    date = f.departureDate.ToString("yyyy-MM-dd"),
+                    time = f.departureTime.ToString("HH:mm:ss")
+                },
+
+                arrival = new LocationDTO
+                {
+                    date = f.landingDate.ToString("yyyy-MM-dd"),
+                    time = f.landingTime.ToString("HH:mm:ss")
+                },
+
+                price = new PriceDTO
+                {
+                    economy = f.price,
+                    business = f.price,
+                    firstClass = f.price
+                },
+                priceFlight = f.price,
+
+                id = f.codeFlight + "-" + f.departureDate.ToString("ddMMyyyy") + "-" + f.departureTime.ToString("HHmmss") + "-",
+
+                isPromotion = f.promotion != null,
+                status = f.status
+            };
+
+            return result;
         }
         public async Task<List<FlightDTO>> getFlightSearchs(FlightSearchDTO dto)
         {
-            var flights = await (from f in context.Flight
-                                 where dto.codeFlight == f.codeFlight && dto.arriveDate == f.arriveDate
-                                 select new FlightDTO
-                                 {
-                                     flightNumber = f.codeFlight,
-                                     arrival = new LocationDTO
-                                     {
-                                         date = f.arriveDate.ToString("dd/MM/yyyy"),
-                                         time = f.arriveTime.ToString(@"hh\:mm\:ss")
-                                     },
-                                     departure = new LocationDTO
-                                     {
-                                         date = f.landingDate.ToString("dd/MM/yyyy"),
-                                         time = f.landingTime.ToString(@"hh\:mm\:ss")
-                                     },
-                                     price = new PriceDTO
-                                     {
-                                         economy = f.price,
-                                         bussiness = f.price,
-                                         firstClass = f.price
-                                     },
-                                     isPromotion = (f.promotion == null) ? false : true,
-                                     status = f.status
-                                 }).ToListAsync<FlightDTO>();
-            return flights;
+            var flights = await context.Flight
+                                       .Where(f => f.codeFlight == dto.codeFlight && f.departureDate == dto.departureDate)
+                                       .Select(f => f)
+                                       .ToListAsync();
+
+            var result = flights.Select(f => new FlightDTO
+            {
+                flightNumber = f.codeFlight,
+
+                departure = new LocationDTO
+                {
+                    date = f.departureDate.ToString("yyyy-MM-dd"),
+                    time = f.departureTime.ToString("HH:mm:ss")
+                },
+
+                arrival = new LocationDTO
+                {
+                    date = f.landingDate.ToString("yyyy-MM-dd"),
+                    time = f.landingTime.ToString("HH:mm:ss")
+                },
+
+                price = new PriceDTO
+                {
+                    economy = f.price,
+                    business = f.price,
+                    firstClass = f.price
+                },
+                priceFlight = f.price,
+                id = f.codeFlight + "-" + f.departureDate.ToString("ddMMyyyy") + "-" + f.departureTime.ToString("HHmmss"),
+                isPromotion = f.promotion != null,
+                status = f.status
+            }).ToList();
+
+            return result;
         }
         public async Task<List<FlightDTO>> getFlights(FlightSearchDTO dto)
         {
-            var flights = await (from f in context.Flight
-                                 where dto.codeFlight == f.codeFlight
-                                 select new FlightDTO
-                                 {
-                                     flightNumber = f.codeFlight,
-                                     arrival = new LocationDTO
-                                     {
-                                         date = f.arriveDate.ToString("dd/MM/yyyy"),
-                                         time = f.arriveTime.ToString(@"hh\:mm\:ss")
-                                     },
-                                     departure = new LocationDTO
-                                     {
-                                         date = f.landingDate.ToString("dd/MM/yyyy"),
-                                         time = f.landingTime.ToString(@"hh\:mm\:ss")
-                                     },
-                                     price = new PriceDTO
-                                     {
-                                         economy = f.price,
-                                         bussiness = f.price,
-                                         firstClass = f.price
-                                     },
-                                     isPromotion = (f.promotion == null) ? false : true,
-                                     status = f.status
-                                 }).ToListAsync();
-            return flights;
+
+            var query = context.Flight.AsQueryable();
+            query = query.Where(f => f.codeFlight == dto.codeFlight);
+            if (dto.departureDate.HasValue)
+            {
+                query = query.Where(f => f.departureDate == dto.departureDate.Value);
+            }
+            var flights = await query.ToListAsync();
+
+            var result = flights.Select(f => new FlightDTO
+            {
+                flightNumber = f.codeFlight,
+
+                departure = new LocationDTO
+                {
+                    date = f.departureDate.ToString("yyyy-MM-dd"),
+                    time = f.departureTime.ToString("HH:mm:ss")
+                },
+
+                arrival = new LocationDTO
+                {
+                    date = f.landingDate.ToString("yyyy-MM-dd"),
+                    time = f.landingTime.ToString("HH:mm:ss")
+                },
+
+                price = new PriceDTO
+                {
+                    economy = f.price,
+                    business = f.price,
+                    firstClass = f.price
+                },
+                priceFlight = f.price,
+                id = f.codeFlight + "-" + f.departureDate.ToString("ddMMyyyy") + "-" + f.departureTime.ToString("HHmmss"),
+                isPromotion = f.promotion != null,
+                status = f.status
+            }).ToList();
+
+            return result;
         }
 
         public async Task<List<FlightDTO>> getAllFlights()
         {
-            var flights = await (from f in context.Flight
-                                 select new FlightDTO
-                                 {
-                                     flightNumber = f.codeFlight,
-                                     arrival = new LocationDTO
-                                     {
-                                         date = f.arriveDate.ToString("dd/MM/yyyy"),
-                                         time = f.arriveTime.ToString(@"hh\:mm\:ss")
-                                     },
-                                     departure = new LocationDTO
-                                     {
-                                         date = f.landingDate.ToString("dd/MM/yyyy"),
-                                         time = f.landingTime.ToString(@"hh\:mm\:ss")
-                                     },
-                                     price = new PriceDTO
-                                     {
-                                         economy = f.price,
-                                         bussiness = f.price,
-                                         firstClass = f.price
-                                     },
-                                     isPromotion = (f.promotion == null) ? false : true,
-                                     status = f.status
-                                 }).ToListAsync();
-            return flights;
+            var flights = await context.Flight.ToListAsync();
+
+            var result = flights.Select(f => new FlightDTO
+            {
+                flightNumber = f.codeFlight,
+
+                departure = new LocationDTO
+                {
+                    date = f.departureDate.ToString("yyyy-MM-dd"),
+                    time = f.departureTime.ToString("HH:mm:ss")
+                },
+
+                arrival = new LocationDTO
+                {
+                    date = f.landingDate.ToString("yyyy-MM-dd"),
+                    time = f.landingTime.ToString("HH:mm:ss")
+                },
+
+                price = new PriceDTO
+                {
+                    economy = f.price,
+                    business = f.price,
+                    firstClass = f.price
+                },
+                priceFlight = f.price,
+                id = f.codeFlight + "-" + f.departureDate.ToString("ddMMyyyy") + "-" + f.departureTime.ToString("HHmmss"),
+                isPromotion = f.promotion != null,
+                status = f.status
+            }).ToList();
+
+            return result;
         }
 
         public async Task<LowBookingDTORequest> getDiscountFlight(FlightSearchDTO dto)
         {
             var flight = await (from f in context.DiscountFlight
-                                where dto.codeFlight == f.codeFlight && dto.arriveDate == f.arriveDate && dto.arriveTime == f.arriveTime
-                                select new LowBookingDTORequest
-                                {
-                                    codeFlight = f.codeFlight,
-                                    arriveDate = f.arriveDate,
-                                    arriveTime = f.arriveTime,
-                                    discount = f.discountPercentage
-                                }).FirstOrDefaultAsync<LowBookingDTORequest>();
-            return flight;
+                                where dto.codeFlight == f.codeFlight && dto.departureDate == f.departureDate && dto.departureTime == f.departureTime
+                                select f).FirstOrDefaultAsync();
+            if (flight == null)
+            {
+                return new LowBookingDTORequest
+                {
+                    discount = 0
+                };
+            }
+
+            return new LowBookingDTORequest
+            {
+                codeFlight = flight.codeFlight,
+                departureDate = flight.departureDate.ToString("yyyy-MM-dd"),
+                departureTime = flight.departureTime.ToString("HH:mm:ss"),
+                discount = flight.discountPercentage
+            };
         }
         public async Task deleteFlight(FlightSearchDTO dto)
         {
             var flight = await (from f in context.Flight
-                                where dto.codeFlight == f.codeFlight && dto.arriveDate == f.arriveDate && dto.arriveTime == f.arriveTime
+                                where dto.codeFlight == f.codeFlight && dto.departureDate == f.departureDate && dto.departureTime == f.departureTime
                                 select f).FirstOrDefaultAsync<Flight>();
             if (flight != null)
             {
@@ -200,7 +271,7 @@ namespace Pbl3.Repositories.Implementation
         public async Task deleteDiscountFlight(FlightSearchDTO dto)
         {
             var flight = await (from f in context.DiscountFlight
-                                where dto.codeFlight == f.codeFlight && dto.arriveDate == f.arriveDate && dto.arriveTime == f.arriveTime
+                                where dto.codeFlight == f.codeFlight && dto.departureDate == f.departureDate && dto.departureTime == f.departureTime
                                 select f).FirstOrDefaultAsync<DiscountFlight>();
             if (flight != null)
             {
@@ -214,11 +285,20 @@ namespace Pbl3.Repositories.Implementation
                                       where dto.codeFlight == f.codeFlight
                                       select new FromToDTO
                                       {
-                                          codeFlight = f.codeFlight,
-                                          fromCity = f.@from,
-                                          toCity = f.to,
-                                          length = f.length
-                                      }).FirstOrDefaultAsync<FromToDTO>();
+                                          departure = new LocationDTO
+                                          {
+                                              code = f.@from,
+                                              city = f.fromCity.fullName,
+                                              airport = f.fromCity.airplane,
+                                          },
+                                          arrival = new LocationDTO
+                                          {
+                                              code = f.to,
+                                              city = f.toCity.fullName,
+                                              airport = f.toCity.airplane,
+                                          }
+                                      }).FirstOrDefaultAsync();
+            if (flightDetail == null) throw new Exception("Cannot find this flight");
             return flightDetail;
         }
 
@@ -229,18 +309,21 @@ namespace Pbl3.Repositories.Implementation
                                            select new FromToDTO
                                            {
                                                codeFlight = f.codeFlight,
-                                               fromCity = f.@from,
-                                               toCity = f.to,
-                                               length = f.length
-                                           }).FirstOrDefaultAsync<FromToDTO>();
+                                               departure = new LocationDTO
+                                               {
+                                                   code = f.@from,
+                                                   city = f.fromCity.fullName,
+                                                   airport = f.fromCity.airplane,
+                                               },
+                                               arrival = new LocationDTO
+                                               {
+                                                   code = f.to,
+                                                   city = f.toCity.fullName,
+                                                   airport = f.toCity.airplane,
+                                               }
+                                           }).FirstOrDefaultAsync();
+            if (informationDetail == null) throw new Exception("Cannot find this flight");
             return informationDetail;
-        }
-        public Task<String> getFullName(string abriviateName)
-        {
-            var fullName = (from c in context.City
-                            where c.abbreviatedName == abriviateName
-                            select c.fullName).FirstOrDefaultAsync<string>();
-            return fullName;
         }
         public async Task<TicketTypeDTO> getTicketType(int codeType)
         {
@@ -255,6 +338,7 @@ namespace Pbl3.Repositories.Implementation
                                         canBeCanceled = t.canBeCanceled,
                                         weightBaggage = t.weightBaggage
                                     }).FirstOrDefaultAsync<TicketTypeDTO>();
+            if (ticketType == null) throw new Exception("Cannot find this type of ticket");
             return ticketType;
         }
         public async Task insertRequest(LowBookingDTORequest dto)
@@ -263,8 +347,8 @@ namespace Pbl3.Repositories.Implementation
             {
                 requester_id = dto.account_id,
                 codeFlight = dto.codeFlight,
-                arriveDate = dto.arriveDate,
-                arriveTime = dto.arriveTime,
+                departureDate = DateOnly.Parse(dto.departureDate),
+                departureTime = TimeOnly.Parse(dto.departureTime),
                 discount = dto.discount ?? 0,
                 type = dto.type
             });
@@ -274,23 +358,24 @@ namespace Pbl3.Repositories.Implementation
         {
             var request = await (from r in context.FlightRequest
                                  where r.requester_id == account_id
-                                 select new LowBookingDTOResponse
-                                 {
-                                     account_id = r.requester_id ?? 0,
-                                     codeFlight = r.codeFlight,
-                                     arriveDate = r.arriveDate,
-                                     arriveTime = r.arriveTime,
-                                     discount = r.discount,
-                                     state = r.status,
-                                     type = r.type
-                                 }).ToListAsync<LowBookingDTOResponse>();
-            return request;
+                                 select r).ToListAsync<FlightRequest>();
+            var result = request.Select(r => new LowBookingDTOResponse
+            {
+                account_id = r.requester_id ?? 0,
+                codeFlight = r.codeFlight,
+                departureDate = r.departureDate.ToString("yyyy-MM-dd"),
+                departureTime = r.departureTime.ToString("HH:mm:ss"),
+                discount = r.discount,
+                state = r.status,
+                type = r.type
+            }).ToList();
+            return result;
         }
         public async Task updateRequest(LowBookingDTORequest dto)
         {
             if (dto.state == null) return;
             var request = await (from r in context.FlightRequest
-                                 where r.requester_id == dto.account_id && r.codeFlight == dto.codeFlight && r.arriveDate == dto.arriveDate && r.arriveTime == dto.arriveTime
+                                 where r.requester_id == dto.account_id && r.codeFlight == dto.codeFlight && r.departureDate == DateOnly.Parse(dto.departureDate) && r.departureTime == TimeOnly.Parse(dto.departureTime)
                                  select r
                                 ).FirstOrDefaultAsync();
             if (request != null)
@@ -303,7 +388,7 @@ namespace Pbl3.Repositories.Implementation
         {
             if (dto.state == null) return;
             var request = await (from r in context.FlightRequest
-                                 where r.codeFlight == dto.codeFlight && r.arriveDate == dto.arriveDate && r.arriveTime == dto.arriveTime
+                                 where r.codeFlight == dto.codeFlight && r.departureDate == DateOnly.Parse(dto.departureDate) && r.departureTime == TimeOnly.Parse(dto.departureTime)
                                  select r
                                 ).ToListAsync<Request>();
             if (request != null)
@@ -318,7 +403,7 @@ namespace Pbl3.Repositories.Implementation
         public async Task deleteRequest(LowBookingDTORequest dto)
         {
             var request = await (from r in context.FlightRequest
-                                 where r.codeFlight == dto.codeFlight && r.arriveDate == dto.arriveDate && r.arriveTime == dto.arriveTime
+                                 where r.codeFlight == dto.codeFlight && r.departureDate == DateOnly.Parse(dto.departureDate) && r.departureTime == TimeOnly.Parse(dto.departureTime)
                                  select r
                                 ).ToListAsync<FlightRequest>();
             if (request != null)
@@ -336,8 +421,8 @@ namespace Pbl3.Repositories.Implementation
             {
                 codeSeat = dto.codeSeat,
                 codeFlight = dto.codeFlight,
-                arriveDate = dto.arriveDate,
-                arriveTime = dto.arriveTime,
+                departureDate = dto.departureDate,
+                departureTime = dto.departureTime,
                 isBooked = false
             });
             await context.SaveChangesAsync();
@@ -346,7 +431,7 @@ namespace Pbl3.Repositories.Implementation
         public async Task updateSeatFlight(SeatSelectionDTO dto)
         {
             var seat = await (from s in context.FlightSeat
-                              where s.codeSeat == dto.codeSeat && s.codeFlight == dto.codeFlight && s.arriveDate == dto.arriveDate && s.arriveTime == dto.arriveTime
+                              where s.codeSeat == dto.codeSeat && s.codeFlight == dto.codeFlight && s.departureDate == dto.departureDate && s.departureTime == dto.departureTime
                               select s).FirstOrDefaultAsync<FlightSeat>();
             if (seat != null)
             {
@@ -372,27 +457,29 @@ namespace Pbl3.Repositories.Implementation
         public async Task<List<SeatSelectionDTO>> getAvailableSeatFlight(FlightSearchDTO dto)
         {
             var seats = await (from s in context.FlightSeat
-                               where s.codeFlight == dto.codeFlight && s.arriveDate == dto.arriveDate && s.arriveTime == dto.arriveTime && s.isBooked == false
+                               where s.codeFlight == dto.codeFlight && s.departureDate == dto.departureDate && s.departureTime == dto.departureTime && s.isBooked == false
                                select new SeatSelectionDTO
                                {
                                    codeSeat = s.codeSeat,
                                    codeFlight = s.codeFlight,
-                                   arriveDate = s.arriveDate,
-                                   arriveTime = s.arriveTime,
+                                   departureDate = s.departureDate,
+                                   departureTime = s.departureTime,
+                                   codeType = s.seat.codeType,
                                    isBooked = s.isBooked
                                }).ToListAsync<SeatSelectionDTO>();
+            Console.WriteLine(seats.Count);
             return seats;
         }
         public async Task<List<SeatSelectionDTO>> getSelectedSeatFlight(FlightSearchDTO dto)
         {
             var seats = await (from s in context.FlightSeat
-                               where s.codeFlight == dto.codeFlight && s.arriveDate == dto.arriveDate && s.arriveTime == dto.arriveTime && s.isBooked == true
+                               where s.codeFlight == dto.codeFlight && s.departureDate == dto.departureDate && s.departureTime == dto.departureTime && s.isBooked == true
                                select new SeatSelectionDTO
                                {
                                    codeSeat = s.codeSeat,
                                    codeFlight = s.codeFlight,
-                                   arriveDate = s.arriveDate,
-                                   arriveTime = s.arriveTime,
+                                   departureDate = s.departureDate,
+                                   departureTime = s.departureTime,
                                    isBooked = s.isBooked
                                }).ToListAsync<SeatSelectionDTO>();
             return seats;
@@ -402,7 +489,7 @@ namespace Pbl3.Repositories.Implementation
             var typeSeat = await (from f in context.Seat
                                   where f.codeSeat == codeSeat
                                   select f.codeType).FirstOrDefaultAsync();
-            if (typeSeat == null) throw new Exception("Invalid seat"); 
+            if (typeSeat == null) throw new Exception("Invalid seat");
             return typeSeat.Value;
         }
         public async Task<List<string>> getAllSeats()
@@ -414,7 +501,7 @@ namespace Pbl3.Repositories.Implementation
         public async Task<Boolean> haveTicket(FlightSearchDTO dto)
         {
             var ticket = await (from t in context.Ticket
-                                where dto.codeFlight == t.codeFlight && dto.arriveDate == t.arriveDate && dto.arriveTime == t.arriveTime
+                                where dto.codeFlight == t.codeFlight && dto.departureDate == t.departureDate && dto.departureTime == t.departureTime
                                 select t).FirstOrDefaultAsync();
             if (ticket != null) return true;
             return false;
@@ -427,24 +514,40 @@ namespace Pbl3.Repositories.Implementation
                                 select new FlightApiDTO
                                 {
                                     flightNumber = t.codeFlight,
-                                    arrivalDate = t.arriveDate.ToString("dd/MM/yyyy"),
-                                    arrivalTime = t.arriveTime.ToString(@"hh\:mm\:ss"),
-                                    arrivalCode = t.flight.fromTo.@from,
-                                    arrivalAirport = t.flight.fromTo.fromCity.airplane,
-                                    arrivalCity = t.flight.fromTo.fromCity.fullName,
-                                    departureDate = t.flight.landingDate.ToString("dd/MM/yyyy"),
-                                    departureTime = t.flight.landingTime.ToString(@"hh\:mm\:ss"),
-                                    departureCode = t.flight.fromTo.to,
-                                    departureCity = t.flight.fromTo.toCity.fullName,
-                                    departureAirport = t.flight.fromTo.toCity.airplane,
-                                    id = t.codeFlight + t.arriveDate.ToString("ddMMyyyy") + t.arriveTime.ToString(@"hhmmss")
+                                    departureDate = t.departureDate.ToString("yyyy-MM-dd"),
+                                    departureTime = t.departureTime.ToString("HH:mm:ss"),
+                                    departureCode = t.flight.fromTo.@from,
+                                    departureAirport = t.flight.fromTo.fromCity.airplane,
+                                    departureCity = t.flight.fromTo.fromCity.fullName,
+                                    arrivalDate = t.flight.landingDate.ToString("yyyy-MM-dd"),
+                                    arrivalTime = t.flight.landingTime.ToString("HH:mm:ss"),
+                                    arrivalCode = t.flight.fromTo.to,
+                                    arrivalCity = t.flight.fromTo.toCity.fullName,
+                                    arrivalAirport = t.flight.fromTo.toCity.airplane,
+                                    id = t.codeFlight + "-" + t.departureDate.ToString("ddMMyyyy") + "-" + t.departureTime.ToString("HHmmss")
 
                                 }).FirstOrDefaultAsync();
             if (flight == null) throw new Exception("");
             return flight;
         }
+
+        public async Task<List<PassengerFlightDTO>> getPassengerFlight(FlightSearchDTO dto)
+        {
+            return await (from t in context.Ticket
+                          where t.codeFlight == dto.codeFlight && t.departureDate == dto.departureDate && t.departureTime == dto.departureTime && t.email != null
+                          select new PassengerFlightDTO
+                          {
+                            name = t.name,
+                            email = t.email
+                          }).ToListAsync<PassengerFlightDTO>();
+        }
+
+        public async Task<string> getFlightNumber(string departureCode, string arrivalCode)
+        {
+            Console.WriteLine(departureCode + " " + arrivalCode);
+            return await (from f in context.FromTo
+                          where f.@from == departureCode && f.to == arrivalCode
+                          select f.codeFlight).FirstOrDefaultAsync<string>();
+        }   
     }
-
-
-
 }

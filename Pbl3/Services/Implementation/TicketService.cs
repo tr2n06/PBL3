@@ -1,9 +1,10 @@
-﻿using Pbl3.DataAccess.Models.Bookings;
+using Pbl3.DataAccess.Models.Bookings;
 using Pbl3.DTOs.Bookings;
 using Pbl3.DTOs.Flight;
 using Pbl3.DTOs.Baggage;
 using Pbl3.Repositories.Interface;
 using Pbl3.Services.Interface;
+using System.Linq;
 
 namespace Pbl3.Services.Implementation
 {
@@ -12,11 +13,13 @@ namespace Pbl3.Services.Implementation
         private readonly ITicketRepository repository;
         private readonly IFlightService flightService;
         private readonly IBaggageService baggageService;
-        public TicketService(ITicketRepository repository, IFlightService flightService, IBaggageService baggageService)
+        private readonly IMailService mailService;
+        public TicketService(ITicketRepository repository, IFlightService flightService, IBaggageService baggageService, IMailService mailService)
         {
             this.repository = repository;
             this.flightService = flightService;
             this.baggageService = baggageService;
+            this.mailService = mailService;
         }
         public async Task insertTicket(TicketRequestDTO dto)
         {
@@ -58,11 +61,18 @@ namespace Pbl3.Services.Implementation
             {
                 var ticket = await repository.getTicket(codeTicket);
 
+                int freeChecked = (ticket.ticketClass == "business") ? 25 : ((ticket.ticketClass == "economy") ? 20 : 35);
+                int defaultCabin = (ticket.ticketClass == "firstClass") ? 12 : ((ticket.ticketClass == "business") ? 7 : 0);
+                int dbChecked = await baggageService.getNumberOfCheckedBaggage(ticket.id);
+                int dbCabin = await baggageService.getNumberOfCabinBaggage(ticket.id);
                 ticket.baggage = new BaggageDTO
                 {
-                    cabin = 1,
-                    @checked = await baggageService.getSumOfBaggageByTicketCode(ticket.id)
+                    cabin = dbCabin > 0 ? dbCabin : defaultCabin,
+                    @checked = dbChecked > 0 ? dbChecked : freeChecked
                 };
+                ticket.baggage.priceCabin = 0; //cabin baggage không được mua thêm
+                ticket.baggage.checkedCabin = (ticket.baggage.@checked > freeChecked) ? (ticket.baggage.@checked - freeChecked) * 40000 : 0;
+                ticket.totalPrice = ticket.price + ticket.baggage.priceCabin + ticket.baggage.checkedCabin;
 
                 var flight = await flightService.getFlightFromCodeTicket(ticket.id);
                 ticket.flightId = flight.id;
@@ -98,21 +108,70 @@ namespace Pbl3.Services.Implementation
         }
         public async Task<List<TicketDTO>> getTicketByBookingCode(string codeBooking)
         {
-            try
+            try 
             {
                 List<TicketDTO> list = await repository.getTicketByBookingCode(codeBooking);
 
                 foreach (var ticket in list)
                 {
+                    int freeChecked = (ticket.ticketClass == "business") ? 25 : ((ticket.ticketClass == "economy") ? 20 : 35);
+                    int defaultCabin = (ticket.ticketClass == "firstClass") ? 12 : ((ticket.ticketClass == "business") ? 7 : 0);
+                    int dbChecked = await baggageService.getNumberOfCheckedBaggage(ticket.id);
+                    int dbCabin = await baggageService.getNumberOfCabinBaggage(ticket.id);
                     ticket.baggage = new BaggageApiDTO
                     {
-                        cabin = 1,
-                        checkedBaggage = await baggageService.getSumOfBaggageByTicketCode(ticket.id)
+                        cabin = dbCabin > 0 ? dbCabin : defaultCabin,
+                        @checked = dbChecked > 0 ? dbChecked : freeChecked
                     };
+                    ticket.baggage.priceCabin = 0; //cabin baggage không được mua thêm
+                    ticket.baggage.checkedCabin = (ticket.baggage.@checked > freeChecked) ? (ticket.baggage.@checked - freeChecked) * 40000 : 0;
+                    ticket.totalPrice = ticket.price + ticket.baggage.priceCabin + ticket.baggage.checkedCabin;
 
                     ticket.flight = await flightService.getFlightFromCodeTicket(ticket.id);
                 }
                 return list;
+            }
+            catch (Exception e)
+            {
+                throw e;
+            }
+        }
+        public async Task<ListTicketDTO> getTicketsListByBookingCode(string codeBooking)
+        {
+            try
+            {
+                var tickets = await getTicketByBookingCode(codeBooking);
+
+                var roundTicketRelations = await repository.getRoundTickets();
+                var result = new ListTicketDTO();
+                var processedTicketIds = new System.Collections.Generic.HashSet<string>();
+
+                foreach (var relation in roundTicketRelations)
+                {
+                    var outbound = tickets.FirstOrDefault(t => t.id == relation.codeTicket);
+                    var returnTkt = tickets.FirstOrDefault(t => t.id == relation.returnCodeTicket);
+
+                    if (outbound != null && returnTkt != null)
+                    {
+                        result.roundTickets.Add(new RoundTicketsDTO
+                        {
+                            ticket = outbound,
+                            returnTicket = returnTkt
+                        });
+                        processedTicketIds.Add(outbound.id);
+                        processedTicketIds.Add(returnTkt.id);
+                    }
+                }
+
+                foreach (var ticket in tickets)
+                {
+                    if (!processedTicketIds.Contains(ticket.id))
+                    {
+                        result.tickets.Add(ticket);
+                    }
+                }
+
+                return result;
             }
             catch (Exception e)
             {
@@ -147,7 +206,7 @@ namespace Pbl3.Services.Implementation
             code += number.ToString();
             return code;
         }
-        public async Task<List<TicketDTO>> getMyTickets(int id)
+        public async Task<ListTicketDTO> getMyTickets(int id)
         {
             try
             {
@@ -155,19 +214,163 @@ namespace Pbl3.Services.Implementation
 
                 foreach (var ticket in tickets)
                 {
+                    int freeChecked = (ticket.ticketClass == "business") ? 25 : ((ticket.ticketClass == "economy") ? 20 : 35);
+                    int defaultCabin = (ticket.ticketClass == "firstClass") ? 12 : ((ticket.ticketClass == "business") ? 7 : 0);
+                    int dbChecked = await baggageService.getNumberOfCheckedBaggage(ticket.id);
+                    int dbCabin = await baggageService.getNumberOfCabinBaggage(ticket.id);
                     ticket.baggage = new BaggageApiDTO
                     {
-                        cabin = 1,
-                        checkedBaggage = await baggageService.getSumOfBaggageByTicketCode(ticket.id)
+                        cabin = dbCabin > 0 ? dbCabin : defaultCabin,
+                        @checked = dbChecked > 0 ? dbChecked : freeChecked
                     };
+                    ticket.baggage.priceCabin = 0; //cabin baggage không được mua thêm
+                    ticket.baggage.checkedCabin = (ticket.baggage.@checked > freeChecked) ? (ticket.baggage.@checked - freeChecked) * 40000 : 0;
+                    ticket.totalPrice = ticket.price + ticket.baggage.priceCabin + ticket.baggage.checkedCabin;
 
                     ticket.flight = await flightService.getFlightFromCodeTicket(ticket.id);
                 }
+
+                var roundTicketRelations = await repository.getRoundTickets();
+                var result = new ListTicketDTO();
+                var processedTicketIds = new System.Collections.Generic.HashSet<string>();
+
+                foreach (var relation in roundTicketRelations)
+                {
+                    var outbound = tickets.FirstOrDefault(t => t.id == relation.codeTicket);
+                    var returnTkt = tickets.FirstOrDefault(t => t.id == relation.returnCodeTicket);
+
+                    if (outbound != null && returnTkt != null)
+                    {
+                        result.roundTickets.Add(new RoundTicketsDTO
+                        {
+                            ticket = outbound,
+                            returnTicket = returnTkt
+                        });
+                        processedTicketIds.Add(outbound.id);
+                        processedTicketIds.Add(returnTkt.id);
+                    }
+                }
+
+                foreach (var ticket in tickets)
+                {
+                    if (!processedTicketIds.Contains(ticket.id))
+                    {
+                        result.tickets.Add(ticket);
+                    }
+                }
+
+                return result;
+            }
+            catch (Exception e)
+            {
+                throw e;
+            }
+        }
+        public async Task<List<TicketDTO>> getAllTickets()
+        {
+            try
+            {
+                var tickets = await repository.getAllTickets();
+
+                foreach (var ticket in tickets)
+                {
+                    int freeChecked = (ticket.ticketClass == "business") ? 25 : ((ticket.ticketClass == "economy") ? 20 : 35);
+                    int defaultCabin = (ticket.ticketClass == "firstClass") ? 12 : ((ticket.ticketClass == "business") ? 7 : 0);
+                    int dbChecked = await baggageService.getNumberOfCheckedBaggage(ticket.id);
+                    int dbCabin = await baggageService.getNumberOfCabinBaggage(ticket.id);
+                    ticket.baggage = new BaggageApiDTO
+                    {
+                        cabin = dbCabin > 0 ? dbCabin : defaultCabin,
+                        @checked = dbChecked > 0 ? dbChecked : freeChecked
+                    };
+                    ticket.baggage.priceCabin = 0; //cabin baggage không được mua thêm
+                    ticket.baggage.checkedCabin = (ticket.baggage.@checked > freeChecked) ? (ticket.baggage.@checked - freeChecked) * 40000 : 0;
+                    ticket.totalPrice = ticket.price + ticket.baggage.priceCabin + ticket.baggage.checkedCabin;
+
+                    ticket.flight = await flightService.getFlightFromCodeTicket(ticket.id);
+                }
+
                 return tickets;
             }
             catch (Exception e)
             {
                 throw e;
+            }
+        }
+
+        public async Task upgradeTicket(string ticketId, UpgradeTicketRequestDTO dto)
+        {
+            try
+            {
+                var oldTicket = await getTicket(ticketId);
+                await repository.UpgradeTicketAsync(ticketId, dto.NewClass, dto.SeatNumber, dto.UpgradeFee, dto.SeatFee);
+                var newTicket = await getTicket(ticketId);
+
+                if (newTicket != null && !string.IsNullOrEmpty(newTicket.passengerEmail))
+                {
+                    await mailService.SendMail(
+                        newTicket.passengerEmail,
+                        "Thông báo nâng hạng vé máy bay thành công",
+                        $@"
+                        <div style='font-family: Arial, sans-serif; line-height:1.8; color:#333'>
+                            <h2 style='color:#1890ff;'>Xác nhận nâng hạng vé thành công</h2>
+                            <p>Kính gửi quý khách {newTicket.passengerName},</p>
+                            <p>Skylines Airlines xin thông báo vé máy bay của quý khách đã được nâng hạng thành công.</p>
+                            <div style='background-color:#f8f9fa;padding:15px;border-radius:5px;margin:20px 0'>
+                                <p><b>Mã vé:</b> {newTicket.id}</p>
+                                <p><b>Mã đặt chỗ (Booking Ref):</b> {newTicket.bookingRef}</p>
+                                <p><b>Chuyến bay:</b> {oldTicket?.flight?.flightNumber}</p>
+                                <p><b>Hành trình:</b> {oldTicket?.flight?.departure?.city} &rarr; {oldTicket?.flight?.arrival?.city}</p>
+                                <p><b>Hạng vé cũ:</b> {oldTicket?.ticketClass}</p>
+                                <p><b>Hạng vé mới:</b> <span style='color:#1890ff; font-weight:bold;'>{newTicket.ticketClass}</span></p>
+                                <p><b>Mã ghế mới:</b> <span style='color:#1890ff; font-weight:bold;'>{newTicket.seatNumber}</span></p>
+                            </div>
+                            <p>Chúc quý khách có một chuyến bay an toàn và thoải mái cùng Skylines Airlines.</p>
+                            <br/>
+                            <p>Trân trọng,<br/><b>Skylines Airlines</b></p>
+                        </div>"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+        }
+
+        public async Task insertRoadTickets(string codeTicket, string returnCodeTicket)
+        {
+            try
+            {
+                await repository.insertRoadTickets(codeTicket, returnCodeTicket);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Database error: " + ex.Message);
+            }
+        }
+
+        public async Task<int?> GetUserIdByTicketIdAsync(string ticketId)
+        {
+            try
+            {
+                return await repository.GetUserIdByTicketIdAsync(ticketId);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Database error: " + ex.Message);
+            }
+        }
+
+        public async Task AddPointsAsync(int userId, int points)
+        {
+            try
+            {
+                await repository.AddPointsAsync(userId, points);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Database error: " + ex.Message);
             }
         }
     }

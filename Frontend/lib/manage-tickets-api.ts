@@ -9,9 +9,14 @@ export type TicketDetailResponse = {
   ticketClass: TicketClass;
   price: number;
   status: "confirmed" | "pending" | "cancelled";
+  totalPrice?: number;
+  isCancelled?: boolean;
+  isUpgraded?: boolean;
   baggage: {
     cabin: number;
     checked: number;
+    priceCabin?: number;
+    checkedCabin?: number;
   };
   flight: {
     flightNumber: string;
@@ -36,7 +41,7 @@ export type TicketDetailResponse = {
 
 export async function getTicketDetail(ticketId: string) {
   const res = await fetch(
-    `http://localhost:5290/api/tickets/${ticketId}`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tickets/${ticketId}`,
     {
       method: "GET",
       credentials: "include",
@@ -62,7 +67,7 @@ export async function requestTicketUpgrade(payload: {
   paymentMethod: "card" | "qr";
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/tickets/${payload.ticketId}/upgrade`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tickets/${payload.ticketId}/upgrade`,
     {
       method: "POST",
       credentials: "include",
@@ -86,7 +91,7 @@ export async function addTicketBaggage(payload: {
   paymentMethod: "card" | "qr";
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/tickets/${payload.ticketId}/baggage`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tickets/${payload.ticketId}/baggage`,
     {
       method: "POST",
       credentials: "include",
@@ -108,7 +113,7 @@ export async function requestTicketCancellation(payload: {
   reason: string;
 }) {
   const res = await fetch(
-    `http://localhost:5290/api/tickets/${payload.ticketId}/cancellation-request`,
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tickets/${payload.ticketId}/cancellation-request`,
     {
       method: "POST",
       credentials: "include",
@@ -123,4 +128,22 @@ export async function requestTicketCancellation(payload: {
   }
 
   return res.json();
+}
+
+export async function checkTicketCancellationRequested(ticketId: string): Promise<boolean> {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tickets/${ticketId}/is-cancellation-requested`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Failed to check cancellation status");
+  }
+
+  return res.json() as Promise<boolean>;
 } 

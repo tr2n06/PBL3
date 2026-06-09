@@ -27,21 +27,42 @@ namespace Pbl3.Controllers
         }
 
         [HttpGet("active")]
-        public IActionResult GetActive()
+        public async Task<ActionResult> GetActive()
         {
-            return Ok(_service.GetActivePromotions().Result);
+            try
+            {
+                return Ok(await _service.GetActivePromotions());
+            }
+            catch(Exception e)
+            {
+                return BadRequest(new { message = "Fail to get active promotion list"});
+            }
         }
 
         [HttpGet("candidates")]
-        public IActionResult GetCandidates()
+        public async Task<ActionResult> GetCandidates()
         {
-            return Ok(_service.GetCandidates().Result);
+            try
+            {
+                return Ok(await _service.GetCandidates());
+            }
+            catch(Exception e)
+            {
+                return BadRequest(new { message = "Fail to get candidate list for promotion"});
+            }
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(string id)
+        public async Task<ActionResult> Delete(string id)
         {
-            return Ok(_service.DeletePromotion(id).Result);
+            try
+            {
+                return Ok(await _service.DeletePromotion(id));
+            }
+            catch(Exception e)
+            {
+                return BadRequest(new { message = "Fail to delete promotion"});
+            }
         }
 
         [HttpGet("requests/my")]
@@ -53,7 +74,7 @@ namespace Pbl3.Controllers
             }
             catch (Exception e)
             {
-                return BadRequest(e.ToString());
+                return BadRequest(new { message = e.ToString()});
             }
         }
 
@@ -68,19 +89,19 @@ namespace Pbl3.Controllers
                     var jwt = handler.ReadJwtToken(token);
 
                     var id = jwt.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
-                    if (id == null) return BadRequest("Can't find this user");
+                    if (id == null) return BadRequest(new { message = "Can't find this user"});
                     dto.requester_id = int.Parse(id);
                     var type = jwt.Claims.FirstOrDefault(c => c.Type == "type")?.Value;
-                    if (type == "Staff") return BadRequest("Can't find this user");
+                    if (type != "Staff") return BadRequest(new { message = "Can't find this user"});
                     await requestService.createPromotionRequest(dto);
-                    return Ok("Successfull");
+                    return Ok(new { message = "Successfull"});
                 }
                 catch (Exception e)
                 {
-                    return BadRequest(e.ToString());
+                    return BadRequest(new { message = e.ToString()});
                 }
             }
-            else return BadRequest("Can't find this user");
+            else return BadRequest(new { message = "Can't find this user"});
         }
 
         [HttpPost("cancellation-requests")]
@@ -94,19 +115,19 @@ namespace Pbl3.Controllers
                     var jwt = handler.ReadJwtToken(token);
 
                     var id = jwt.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
-                    if (id == null) return BadRequest("Can't find this user");
+                    if (id == null) return BadRequest(new { message = "Can't find this user"});
                     dto.requester_id = int.Parse(id);
                     var type = jwt.Claims.FirstOrDefault(c => c.Type == "type")?.Value;
-                    if (type == "Staff") return BadRequest("Can't find this user");
+                    if (type != "Staff") return BadRequest(new { message = "Can't find this user"});
                     await requestService.createPromotionCancellationRequest(dto);
-                    return Ok("Successfull");
+                    return Ok(new { message = "Successfull"});
                 }
                 catch (Exception e)
                 {
-                    return BadRequest(e.ToString());
+                    return BadRequest(new { message = e.ToString()});
                 }
             }
-            else return BadRequest("Can't find this user");
+            else return BadRequest(new { message = "Can't find this user"});
         }
 
         [HttpGet("cancellation-requests/my")]
@@ -118,7 +139,7 @@ namespace Pbl3.Controllers
             }
             catch (Exception e)
             {
-                return BadRequest(e.ToString());
+                return BadRequest(new { message = e.ToString()});
             }
         }
     }
