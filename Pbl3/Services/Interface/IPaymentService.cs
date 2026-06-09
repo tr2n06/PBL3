@@ -8,6 +8,8 @@ namespace Pbl3.Services.Interface
         Task<object> ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, int? loggedInUserId, string? userType, string? clientHost);
         Task<object> ConfirmPaymentAsync(string orderId, string bankName, string accountNumber, string accountName, long amount);
         Task<object> ConfirmSuccessPaymentAsync(PaymentConfirmSuccessRequestDTO request);
+        Task<object> InitiateTicketActionPaymentAsync(TicketActionPaymentRequestDTO request, string? clientHost);
+        Task<object> ConfirmTicketActionPaymentAsync(TicketActionPaymentConfirmDTO request);
         Task<string> CheckBookingStatusAsync(string bookingRef);
     }
 }

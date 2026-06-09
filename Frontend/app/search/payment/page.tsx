@@ -22,7 +22,7 @@ import {
   QrCode,
 } from "lucide-react";
 import type { Flight, TicketClass } from "@/lib/types";
-import { completePayment, confirmSuccessPayment } from "@/lib/payment-api";
+import { completePayment, confirmSuccessPayment, fetchPaymentStatus } from "@/lib/payment-api";
 import { getCurrentUser } from "@/lib/profile-api";
 
 // ─── types replicated from booking page ─────────────────────────────────────
@@ -151,20 +151,15 @@ function GuestPaymentPageContent() {
     let active = true;
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/status/${bookingRef}`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          if (data.status === "confirmed" && active) {
-            clearInterval(interval);
-            setBooked((prev) =>
-              prev ? { ...prev, bookingRef: bookingRef } : prev
-            );
-            localStorage.removeItem("tempBooking");
-            setIsSuccess(true);
-            setViewMode("checkout");
-          }
+        const data = await fetchPaymentStatus(bookingRef);
+        if (data.status === "confirmed" && active) {
+          clearInterval(interval);
+          setBooked((prev) =>
+            prev ? { ...prev, bookingRef: bookingRef } : prev
+          );
+          localStorage.removeItem("tempBooking");
+          setIsSuccess(true);
+          setViewMode("checkout");
         }
       } catch (err) {
         console.error("Status polling failed:", err);
@@ -181,23 +176,16 @@ function GuestPaymentPageContent() {
     if (!bookingRef) return;
     setIsProcessing(true);
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/status/${bookingRef}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === "confirmed") {
-          setBooked((prev) =>
-            prev ? { ...prev, bookingRef: bookingRef } : prev
-          );
-          localStorage.removeItem("tempBooking");
-          setIsSuccess(true);
-          setViewMode("checkout");
-        } else {
-          alert("Giao dịch vẫn đang chờ thanh toán. Vui lòng quét mã QR hoặc hoàn tất thanh toán trên cổng.");
-        }
+      const data = await fetchPaymentStatus(bookingRef);
+      if (data.status === "confirmed") {
+        setBooked((prev) =>
+          prev ? { ...prev, bookingRef: bookingRef } : prev
+        );
+        localStorage.removeItem("tempBooking");
+        setIsSuccess(true);
+        setViewMode("checkout");
       } else {
-        alert("Không thể kiểm tra trạng thái thanh toán.");
+        alert("Giao dich van dang cho thanh toan. Vui long quet ma QR hoac hoan tat thanh toan tren cong.");
       }
     } catch (err) {
       alert("Đã xảy ra lỗi khi kiểm tra.");

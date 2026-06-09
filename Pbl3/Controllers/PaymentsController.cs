@@ -124,6 +124,38 @@ namespace Pbl3.Controllers
             }
         }
 
+        [HttpPost("ticket-action")]
+        public async Task<IActionResult> InitiateTicketActionPayment([FromBody] TicketActionPaymentRequestDTO request)
+        {
+            try
+            {
+                var result = await _paymentService.InitiateTicketActionPaymentAsync(request, Request.Host.Host);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                LogException("InitiateTicketActionPayment", ex);
+                var msg = ex.InnerException != null ? $"{ex.Message} | Inner: {ex.InnerException.Message}" : ex.Message;
+                return BadRequest(new { success = false, message = msg });
+            }
+        }
+
+        [HttpPost("ticket-action/confirm")]
+        public async Task<IActionResult> ConfirmTicketActionPayment([FromBody] TicketActionPaymentConfirmDTO request)
+        {
+            try
+            {
+                var result = await _paymentService.ConfirmTicketActionPaymentAsync(request);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                LogException("ConfirmTicketActionPayment", ex);
+                var msg = ex.InnerException != null ? $"{ex.Message} | Inner: {ex.InnerException.Message}" : ex.Message;
+                return BadRequest(new { success = false, message = msg });
+            }
+        }
+
         private void LogException(string context, Exception ex)
         {
             try

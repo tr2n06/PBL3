@@ -303,6 +303,7 @@ namespace Pbl3.Services.Implementation
             try
             {
                 var oldTicket = await getTicket(ticketId);
+                dto.UpgradeFee = await CalculateUpgradeAmountAsync(ticketId, dto.NewClass, dto.SeatFee) - dto.SeatFee;
                 await repository.UpgradeTicketAsync(ticketId, dto.NewClass, dto.SeatNumber, dto.UpgradeFee, dto.SeatFee);
                 var newTicket = await getTicket(ticketId);
 
@@ -336,6 +337,11 @@ namespace Pbl3.Services.Implementation
             {
                 throw new Exception(ex.Message);
             }
+        }
+
+        public async Task<decimal> CalculateUpgradeAmountAsync(string ticketId, string newClass, decimal seatFee)
+        {
+            return await repository.CalculateUpgradeAmountAsync(ticketId, newClass, seatFee);
         }
 
         public async Task insertRoadTickets(string codeTicket, string returnCodeTicket)

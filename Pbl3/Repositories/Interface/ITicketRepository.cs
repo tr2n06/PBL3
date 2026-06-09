@@ -15,6 +15,7 @@ namespace Pbl3.Repositories.Interface
         public Task<List<TicketDTO>> getTickets(int id);
         public Task<List<TicketDTO>> getAllTickets();
         public Task UpgradeTicketAsync(string ticketId, string newClass, string? seatNumber, decimal upgradeFee, decimal seatFee);
+        public Task<decimal> CalculateUpgradeAmountAsync(string ticketId, string newClass, decimal seatFee);
         public Task insertRoadTickets(string codeTicket, string returnCodeTicket);
         public Task<List<RoundTickets>> getRoundTickets();
         public Task<int?> GetUserIdByTicketIdAsync(string ticketId);

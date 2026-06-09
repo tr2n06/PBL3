@@ -11,3 +11,48 @@
    at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 182
    at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
 --------------------------------------------------
+[2026-06-09 14:05:18] ERROR in ConfirmPayment: Microsoft.EntityFrameworkCore.DbUpdateException: An error occurred while saving the entity changes. See the inner exception for details.
+ ---> Microsoft.Data.SqlClient.SqlException (0x80131904): The INSERT statement conflicted with the FOREIGN KEY constraint "FK_Baggage_Ticket_codeTicket". The conflict occurred in database "Pbl3Db", table "dbo.Ticket", column 'codeTicket'.
+The statement has been terminated.
+   at System.Threading.Tasks.ContinuationResultTaskFromResultTask`2.InnerInvoke()
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+ClientConnectionId:741c0096-5a8e-49a7-95ec-1bd5651f0663
+Error Number:547,State:0,Class:16
+   --- End of inner exception stack trace ---
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Update.Internal.SqlServerModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Pbl3.Repositories.Implementation.BaggageRepository.insertBaggage(BaggageRequestDTO dto) in D:\C_Sharp\Pbl3\Pbl3\Repositories\Implementation\BaggageRepository.cs:line 27
+   at Pbl3.Services.Implementation.BaggageService.insertBaggage(BaggageRequestDTO dto) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\BaggageService.cs:line 17
+   at Pbl3.Services.Implementation.PaymentService.ConfirmTicketActionPaymentAsync(TicketActionPaymentConfirmDTO request) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 683
+   at Pbl3.Services.Implementation.PaymentService.ConfirmPaymentAsync(String orderId, String bankName, String accountNumber, String accountName, Int64 amount) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 421
+   at Pbl3.Controllers.PaymentsController.ConfirmPayment(ConfirmPaymentCallbackRequest request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 73
+Inner Exception: Microsoft.Data.SqlClient.SqlException (0x80131904): The INSERT statement conflicted with the FOREIGN KEY constraint "FK_Baggage_Ticket_codeTicket". The conflict occurred in database "Pbl3Db", table "dbo.Ticket", column 'codeTicket'.
+The statement has been terminated.
+   at System.Threading.Tasks.ContinuationResultTaskFromResultTask`2.InnerInvoke()
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+ClientConnectionId:741c0096-5a8e-49a7-95ec-1bd5651f0663
+Error Number:547,State:0,Class:16
+--------------------------------------------------

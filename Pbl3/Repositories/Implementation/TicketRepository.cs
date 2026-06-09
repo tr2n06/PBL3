@@ -370,6 +370,32 @@ namespace Pbl3.Repositories.Implementation
             await context.SaveChangesAsync();
         }
 
+        public async Task<decimal> CalculateUpgradeAmountAsync(string ticketId, string newClass, decimal seatFee)
+        {
+            var ticket = await context.Ticket
+                .Include(t => t.flight)
+                .FirstOrDefaultAsync(t => t.codeTicket == ticketId);
+
+            if (ticket == null) throw new KeyNotFoundException("Ticket not found");
+
+            var targetType = await context.TicketType.FirstOrDefaultAsync(t => t.name == newClass);
+            if (targetType == null) throw new KeyNotFoundException($"Ticket class {newClass} not found");
+
+            var targetClassPrice = ticket.flight.price + targetType.priceBooked;
+            var discount = await context.DiscountFlight.FirstOrDefaultAsync(d =>
+                d.codeFlight == ticket.codeFlight &&
+                d.departureDate == ticket.departureDate &&
+                d.departureTime == ticket.departureTime);
+            if (discount != null)
+            {
+                targetClassPrice *= 1 - discount.discountPercentage / 100m;
+            }
+            var upgradeFee = Math.Round(targetClassPrice * 1.2m - ticket.price);
+            if (upgradeFee < 0) upgradeFee = 0;
+
+            return upgradeFee + seatFee;
+        }
+
         public async Task insertRoadTickets(string codeTicket, string returnCodeTicket)
         {
             await context.RoundTickets.AddAsync(new RoundTickets

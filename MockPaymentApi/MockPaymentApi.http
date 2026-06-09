@@ -1,6 +1,0 @@
-@MockPaymentApi_HostAddress = http://localhost:5028
-
-GET {{MockPaymentApi_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

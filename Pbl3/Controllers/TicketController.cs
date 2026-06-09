@@ -155,8 +155,12 @@ namespace Pbl3.Controllers
                     weight = dto.ExtraCheckedKg,
                     type = "checked",
                     status = "confirmed",
-                    codeTransaction = "BG_" + Guid.NewGuid().ToString().Substring(0, 8).ToUpper()
+                    codeTransaction = dto.CodeTransaction
                 };
+                if (string.IsNullOrWhiteSpace(baggageDto.codeTransaction))
+                {
+                    return BadRequest(new { success = false, message = "Missing payment transaction" });
+                }
                 await baggageService.insertBaggage(baggageDto);
 
                 // Reward points based on the extra baggage amount paid (amount / 1000000)
@@ -186,6 +190,10 @@ namespace Pbl3.Controllers
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(dto.CodeTransaction))
+                {
+                    return BadRequest(new { success = false, message = "Missing payment transaction" });
+                }
                 await service.upgradeTicket(ticketId, dto);
                 return Ok(new { success = true, message = "Ticket upgraded successfully" });
             }
@@ -216,5 +224,6 @@ namespace Pbl3.Controllers
         public int ExtraCheckedKg { get; set; }
         public decimal Amount { get; set; }
         public string PaymentMethod { get; set; }
+        public string? CodeTransaction { get; set; }
     }
 }

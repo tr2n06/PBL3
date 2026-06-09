@@ -4,12 +4,16 @@ import { useState,useEffect,useCallback } from 'react'
 import type { TicketClass } from '@/lib/types'
 import {
   getTicketDetail,
-  requestTicketUpgrade,
-  addTicketBaggage,
   requestTicketCancellation,
   checkTicketCancellationRequested,
 } from '@/lib/manage-tickets-api'
-import { confirmSuccessPayment, completePayment } from '@/lib/payment-api'
+import {
+  confirmSuccessPayment,
+  completePayment,
+  confirmTicketActionPayment,
+  fetchPaymentStatus,
+  initiateTicketActionPayment,
+} from '@/lib/payment-api'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -347,16 +351,11 @@ export default function TicketDetailPage() {
     let active = true;
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/status/${mainTicket.bookingRef}`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          if (data.status === "confirmed" && active) {
-            clearInterval(interval);
-            await refreshTicketDetails();
-            alert("Thanh toán thành công!");
-          }
+        const data = await fetchPaymentStatus(mainTicket.bookingRef);
+        if (data.status === "confirmed" && active) {
+          clearInterval(interval);
+          await refreshTicketDetails();
+          alert("Thanh toan thanh cong!");
         }
       } catch (err) {
         console.error("Status polling failed:", err);
@@ -509,8 +508,7 @@ export default function TicketDetailPage() {
   const availableUpgrades = ticket ? getAvailableUpgrades(ticket.ticketClass) : []
 
   const upgradeClassDiff = (ticket && selectedUpgrade)
-    ? getBasePrice(ticket.flightId, selectedUpgrade as TicketClass) -
-      getBasePrice(ticket.flightId, ticket.ticketClass)
+    ? Math.max(0, Math.round(getBasePrice(ticket.flightId, selectedUpgrade as TicketClass) * 1.2 - ticket.price))
     : 0
   const upgradeSeatFee = upgradeSeatChosen ? SEAT_SURCHARGE[upgradeType] : 0
   const upgradePrice = upgradeClassDiff + upgradeSeatFee
@@ -559,19 +557,41 @@ export default function TicketDetailPage() {
     setShowCancelDialog(true)
   }
 
+  const waitForTicketActionConfirmation = async (transactionCode: string) => {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      const data = await fetchPaymentStatus(transactionCode)
+      if (data.status === 'confirmed') return
+    }
+    throw new Error('Payment confirmation timed out')
+  }
+
   const handleUpgradePayment = async () => {
     if (!upgradePaymentMethod || !selectedUpgrade || !activeDialogTicket) return
     setIsProcessing(true)
     try {
-      await requestTicketUpgrade({
+      const payment = await initiateTicketActionPayment({
+        actionType: 'upgrade',
         ticketId: activeDialogTicket.id,
+        paymentMethod: upgradePaymentMethod,
+        amount: upgradePrice,
         newClass: selectedUpgrade as TicketClass,
         seatNumber: upgradeSeatChosen ? upgradeSeat : undefined,
         seatType: upgradeSeatChosen ? upgradeType : undefined,
         seatFee: upgradeSeatFee,
-        upgradeFee: upgradeClassDiff,
-        paymentMethod: upgradePaymentMethod,
       })
+
+      if (upgradePaymentMethod === 'qr') {
+        if (!payment.qrLink) throw new Error('Missing QR payment link')
+        window.open(payment.qrLink, '_blank', 'noopener,noreferrer')
+        await waitForTicketActionConfirmation(payment.transactionCode)
+      } else {
+        await confirmTicketActionPayment({
+          transactionCode: payment.transactionCode,
+          paymentMethod: upgradePaymentMethod,
+        })
+      }
+
       await refreshTicketDetails()
       setIsProcessing(false)
       setUpgradeStep('success')
@@ -586,12 +606,25 @@ export default function TicketDetailPage() {
     if (!baggagePaymentMethod || !activeDialogTicket) return
     setIsProcessing(true)
     try {
-      await addTicketBaggage({
+      const payment = await initiateTicketActionPayment({
+        actionType: 'baggage',
         ticketId: activeDialogTicket.id,
-        extraCheckedKg,
-        amount: bagCostVND,
         paymentMethod: baggagePaymentMethod,
+        amount: bagCostVND,
+        extraCheckedKg,
       })
+
+      if (baggagePaymentMethod === 'qr') {
+        if (!payment.qrLink) throw new Error('Missing QR payment link')
+        window.open(payment.qrLink, '_blank', 'noopener,noreferrer')
+        await waitForTicketActionConfirmation(payment.transactionCode)
+      } else {
+        await confirmTicketActionPayment({
+          transactionCode: payment.transactionCode,
+          paymentMethod: baggagePaymentMethod,
+        })
+      }
+
       await refreshTicketDetails()
       setExtraBaggagePaidVND(prev => prev + bagCostVND)
       setIsProcessing(false)

@@ -36,11 +36,10 @@ import {
 } from 'lucide-react'
 
 import {
-  addTicketBaggage,
   requestTicketCancellation,
-  requestTicketUpgrade,
   checkTicketCancellationRequested,
 } from '@/lib/manage-tickets-api'
+import { confirmTicketActionPayment, initiateTicketActionPayment } from '@/lib/payment-api'
 import type { Flight, TicketClass, TicketStatus } from '@/lib/types'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''
@@ -367,11 +366,17 @@ export default function EmployeeTicketsPage() {
           throw new Error('This ticket is already in the highest class')
         }
 
-        await requestTicketUpgrade({
+        const payment = await initiateTicketActionPayment({
+          actionType: 'upgrade',
           ticketId: selectedTicket.id,
+          paymentMethod: 'card',
+          amount: 0,
           newClass: upgradeTo,
           seatFee: 0,
-          upgradeFee: 0,
+        })
+
+        await confirmTicketActionPayment({
+          transactionCode: payment.transactionCode,
           paymentMethod: 'card',
         })
       }
@@ -383,10 +388,16 @@ export default function EmployeeTicketsPage() {
           throw new Error('Please select extra checked baggage')
         }
 
-        await addTicketBaggage({
+        const payment = await initiateTicketActionPayment({
+          actionType: 'baggage',
           ticketId: selectedTicket.id,
-          extraCheckedKg: kg,
+          paymentMethod: 'card',
           amount: kg * 40_000,
+          extraCheckedKg: kg,
+        })
+
+        await confirmTicketActionPayment({
+          transactionCode: payment.transactionCode,
           paymentMethod: 'card',
         })
       }

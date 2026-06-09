@@ -14,6 +14,7 @@ using Pbl3.DTOs.Baggage;
 using Pbl3.DTOs.Flight;
 using Pbl3.Repositories.Interface;
 using Pbl3.Services.Interface;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Pbl3.Services.Implementation
 {
@@ -25,8 +26,9 @@ namespace Pbl3.Services.Implementation
         private readonly IBaggageService _baggageService;
         private readonly IFlightService _flightService;
         private readonly IMailService _mailService;
+        private readonly IMemoryCache _cache;
 
-        public PaymentService(IPaymentRepository paymentRepository, IBookingService bookingService, ITicketService ticketService, IBaggageService baggageService, IFlightService flightService, IMailService mailService)
+        public PaymentService(IPaymentRepository paymentRepository, IBookingService bookingService, ITicketService ticketService, IBaggageService baggageService, IFlightService flightService, IMailService mailService, IMemoryCache cache)
         {
             _paymentRepository = paymentRepository;
             _bookingService = bookingService;
@@ -34,6 +36,7 @@ namespace Pbl3.Services.Implementation
             _baggageService = baggageService;
             _flightService = flightService;
             _mailService = mailService;
+            _cache = cache;
         }
 
         public async Task<object> ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, int? loggedInUserId, string? userType, string? clientHost)
@@ -115,8 +118,8 @@ namespace Pbl3.Services.Implementation
             var transaction = new Transaction
             {
                 codeTransaction = txnCode,
-                sourceBank = isQR ? "PENDING" : (request.paymentMethod.ToLower() == "card" ? "VISA/MASTERCARD" : "CASH"),
-                sourceAccount = isQR ? "PENDING" : (request.paymentMethod.ToLower() == "card" ? "Mock Card *9999" : "Cash Over Counter"),
+                sourceBank = isQR ? "pending" : (request.paymentMethod.ToLower() == "card" ? "VISA/MASTERCARD" : "CASH"),
+                sourceAccount = isQR ? "pending" : (request.paymentMethod.ToLower() == "card" ? "Mock Card *9999" : "Cash Over Counter"),
                 beneficiaryBank = "VjpHangKhongBank",
                 beneficiaryAccount = "1234567890",
                 transactionAmount = (int)request.totalPrice,
@@ -413,6 +416,18 @@ namespace Pbl3.Services.Implementation
 
         public async Task<object> ConfirmPaymentAsync(string orderId, string bankName, string accountNumber, string accountName, long amount)
         {
+            if (_cache.TryGetValue(GetTicketActionCacheKey(orderId), out TicketActionPaymentRequestDTO actionRequest))
+            {
+                return await ConfirmTicketActionPaymentAsync(new TicketActionPaymentConfirmDTO
+                {
+                    TransactionCode = orderId,
+                    PaymentMethod = "qr",
+                    SourceBank = bankName,
+                    SourceAccount = accountNumber,
+                    AccountName = accountName
+                });
+            }
+
             // Find booking by reference (OrderId from the mock checkout is bookingRef)
             var booking = await _paymentRepository.GetBookingByCodeAsync(orderId);
             if (booking == null)
@@ -543,10 +558,166 @@ namespace Pbl3.Services.Implementation
             return new { success = true, message = "Payment successfully confirmed and tickets generated!" };
         }
 
+        public async Task<object> InitiateTicketActionPaymentAsync(TicketActionPaymentRequestDTO request, string? clientHost)
+        {
+            if (string.IsNullOrWhiteSpace(request.TicketId))
+            {
+                throw new ArgumentException("TicketId is required.");
+            }
+
+            string actionType = request.ActionType?.ToLower().Trim() ?? "";
+            string method = request.PaymentMethod?.ToLower().Trim() ?? "";
+            if (actionType != "upgrade" && actionType != "baggage")
+            {
+                throw new ArgumentException("Invalid ticket action.");
+            }
+            if (method != "card" && method != "qr" && method != "cash")
+            {
+                throw new ArgumentException("Invalid payment method.");
+            }
+
+            decimal expectedAmount = request.Amount;
+            if (actionType == "upgrade")
+            {
+                if (string.IsNullOrWhiteSpace(request.NewClass))
+                {
+                    throw new ArgumentException("NewClass is required.");
+                }
+                expectedAmount = await _ticketService.CalculateUpgradeAmountAsync(request.TicketId, request.NewClass, request.SeatFee);
+            }
+            else
+            {
+                if (!request.ExtraCheckedKg.HasValue || request.ExtraCheckedKg.Value <= 0)
+                {
+                    throw new ArgumentException("Extra checked baggage must be greater than zero.");
+                }
+                expectedAmount = request.ExtraCheckedKg.Value * 40000m;
+            }
+
+            request.Amount = expectedAmount;
+            string transactionCode = GenerateTicketActionTransactionCode(actionType);
+            var isQr = method == "qr";
+            var transaction = new Transaction
+            {
+                codeTransaction = transactionCode,
+                sourceBank = isQr ? "pending" : method.ToUpper(),
+                sourceAccount = isQr ? "pending" : "Pending confirmation",
+                beneficiaryBank = "Skylines",
+                beneficiaryAccount = "102102102",
+                transactionAmount = (int)Math.Round(expectedAmount),
+                timeTransaction = DateTime.UtcNow
+            };
+
+            await _paymentRepository.InsertTransactionAsync(transaction);
+            await _paymentRepository.SaveChangesAsync();
+
+            _cache.Set(GetTicketActionCacheKey(transactionCode), request, TimeSpan.FromMinutes(30));
+
+            if (isQr)
+            {
+                string host = (string.IsNullOrEmpty(clientHost) || clientHost == "localhost" || clientHost == "127.0.0.1" || clientHost == "::1") ? GetLocalIPAddress() : clientHost;
+                string gatewayUrl = $"http://{host}:3000/checkout";
+                string backendUrl = $"http://{host}:5290";
+                string qrLink = $"{gatewayUrl}?orderId={transactionCode}&amount={(int)expectedAmount}&info={Uri.EscapeDataString("Thanh toan dich vu ve " + request.TicketId)}&backend={Uri.EscapeDataString(backendUrl)}";
+
+                return new
+                {
+                    success = true,
+                    paymentMethod = "qr",
+                    transactionCode,
+                    amount = expectedAmount,
+                    qrLink
+                };
+            }
+
+            return new
+            {
+                success = true,
+                paymentMethod = method,
+                transactionCode,
+                amount = expectedAmount
+            };
+        }
+
+        public async Task<object> ConfirmTicketActionPaymentAsync(TicketActionPaymentConfirmDTO request)
+        {
+            if (string.IsNullOrWhiteSpace(request.TransactionCode))
+            {
+                throw new ArgumentException("TransactionCode is required.");
+            }
+
+            string cacheKey = GetTicketActionCacheKey(request.TransactionCode);
+            if (!_cache.TryGetValue(cacheKey, out TicketActionPaymentRequestDTO actionRequest))
+            {
+                throw new InvalidOperationException("Pending ticket action payment not found or expired.");
+            }
+
+            var transaction = await _paymentRepository.GetTransactionByCodeAsync(request.TransactionCode);
+            if (transaction == null)
+            {
+                throw new InvalidOperationException("Transaction not found.");
+            }
+
+            string method = request.PaymentMethod?.ToLower().Trim() ?? actionRequest.PaymentMethod?.ToLower().Trim() ?? "";
+            transaction.sourceBank = request.SourceBank ?? (method == "card" ? "VISA/MASTERCARD" : method.ToUpper());
+            transaction.sourceAccount = request.SourceAccount != null && request.AccountName != null
+                ? $"{request.SourceAccount} ({request.AccountName})"
+                : (request.SourceAccount ?? "Confirmed");
+            transaction.timeTransaction = DateTime.UtcNow;
+
+            if (actionRequest.ActionType.ToLower() == "upgrade")
+            {
+                await _ticketService.upgradeTicket(actionRequest.TicketId, new UpgradeTicketRequestDTO
+                {
+                    TicketId = actionRequest.TicketId,
+                    NewClass = actionRequest.NewClass ?? "",
+                    SeatNumber = actionRequest.SeatNumber,
+                    SeatType = actionRequest.SeatType,
+                    SeatFee = actionRequest.SeatFee,
+                    PaymentMethod = method,
+                    CodeTransaction = request.TransactionCode
+                });
+            }
+            else if (actionRequest.ActionType.ToLower() == "baggage")
+            {
+                await _baggageService.insertBaggage(new BaggageRequestDTO
+                {
+                    codeTransaction = request.TransactionCode,
+                    codeTicket = actionRequest.TicketId,
+                    weight = actionRequest.ExtraCheckedKg ?? 0,
+                    type = "checked",
+                    status = "confirmed"
+                });
+
+                if (actionRequest.Amount > 0)
+                {
+                    int? userId = await _ticketService.GetUserIdByTicketIdAsync(actionRequest.TicketId);
+                    if (userId.HasValue && userId.Value >= 51)
+                    {
+                        int pointsEarned = (int)(actionRequest.Amount / 1000000);
+                        if (pointsEarned > 0)
+                        {
+                            await _ticketService.AddPointsAsync(userId.Value, pointsEarned);
+                        }
+                    }
+                }
+            }
+
+            await _paymentRepository.SaveChangesAsync();
+            _cache.Remove(cacheKey);
+
+            return new { success = true, message = "Ticket action payment confirmed.", actionType = actionRequest.ActionType };
+        }
+
         public async Task<string> CheckBookingStatusAsync(string bookingRef)
         {
             var booking = await _paymentRepository.GetBookingByCodeAsync(bookingRef);
-            if (booking == null) return "notfound";
+            if (booking == null)
+            {
+                var transaction = await _paymentRepository.GetTransactionByCodeAsync(bookingRef);
+                if (transaction == null) return "notfound";
+                return transaction.sourceBank == "pending" ? "pending" : "confirmed";
+            }
 
             // If all tickets are confirmed, the booking is confirmed
             if (booking.tickets.All(t => t.status == "confirmed"))
@@ -555,6 +726,14 @@ namespace Pbl3.Services.Implementation
             }
 
             return "pending";
+        }
+
+        private static string GetTicketActionCacheKey(string transactionCode) => $"ticket-action:{transactionCode}";
+
+        private static string GenerateTicketActionTransactionCode(string actionType)
+        {
+            string prefix = actionType == "upgrade" ? "UPG" : "BAG";
+            return $"{prefix}_{Guid.NewGuid():N}".Substring(0, 30).ToUpperInvariant();
         }
 
         private string GetLocalIPAddress()

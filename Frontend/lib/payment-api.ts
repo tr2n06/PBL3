@@ -88,3 +88,86 @@ export async function confirmSuccessPayment(payload: ConfirmSuccessPaymentPayloa
 
   return res.json();
 }
+
+export async function fetchPaymentStatus(referenceCode: string) {
+  const encodedReference = encodeURIComponent(referenceCode.trim());
+  const baseUrl =
+    typeof window === "undefined" ? "" : window.location.origin.replace(/\/$/, "");
+  const res = await fetch(`${baseUrl}/api/payments/status/${encodedReference}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Khong kiem tra duoc trang thai thanh toan");
+  }
+
+  return res.json() as Promise<{ status: string }>;
+}
+
+export type TicketActionPaymentPayload = {
+  actionType: "upgrade" | "baggage";
+  ticketId: string;
+  paymentMethod: "card" | "qr" | "cash";
+  amount: number;
+  newClass?: string;
+  seatNumber?: string;
+  seatType?: string;
+  seatFee?: number;
+  extraCheckedKg?: number;
+};
+
+export async function initiateTicketActionPayment(payload: TicketActionPaymentPayload) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/ticket-action`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Khong tao duoc giao dich thanh toan");
+  }
+
+  return res.json() as Promise<{
+    success: boolean;
+    paymentMethod: "card" | "qr" | "cash";
+    transactionCode: string;
+    amount: number;
+    qrLink?: string;
+  }>;
+}
+
+export async function confirmTicketActionPayment(payload: {
+  transactionCode: string;
+  paymentMethod: "card" | "qr" | "cash";
+  sourceBank?: string;
+  sourceAccount?: string;
+  accountName?: string;
+}) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/payments/ticket-action/confirm`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Khong xac nhan duoc thanh toan");
+  }
+
+  return res.json();
+}

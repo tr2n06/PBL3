@@ -8,6 +8,7 @@ function CheckoutContent() {
     const orderId = searchParams.get('orderId') || '';
     const amount = searchParams.get('amount') || '0';
     const info = searchParams.get('info') || '';
+    const backend = searchParams.get('backend') || '';
 
     const [bankName, setBankName] = useState('CB Bank - Ngan hang Con Bo');
     const [accountNumber, setAccountNumber] = useState('');
@@ -31,26 +32,37 @@ function CheckoutContent() {
 
         setLoading(true);
         try {
-            const confirmUrl = "/api/payment/confirm-payment";
-            
-            const response = await fetch(confirmUrl, {
+            const backendBase = backend.replace(/\/$/, '');
+            const payload = {
+                OrderId: orderId,
+                orderId: orderId,
+                BankName: bankName,
+                bankName: bankName,
+                AccountNumber: accountNumber,
+                accountNumber: accountNumber,
+                AccountName: accountName,
+                accountName: accountName,
+                Amount: parseInt(amount),
+                amount: parseInt(amount)
+            };
+
+            let response = await fetch("/api/payment/confirm-payment", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    OrderId: orderId,
-                    orderId: orderId,
-                    BankName: bankName,
-                    bankName: bankName,
-                    AccountNumber: accountNumber,
-                    accountNumber: accountNumber,
-                    AccountName: accountName,
-                    accountName: accountName,
-                    Amount: parseInt(amount),
-                    amount: parseInt(amount)
-                })
+                body: JSON.stringify(payload)
             });
+
+            if (!response.ok && backendBase) {
+                response = await fetch(`${backendBase}/api/payment/confirm-payment`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+            }
 
             if (!response.ok) {
                 const errText = await response.text();

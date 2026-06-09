@@ -9,5 +9,6 @@ namespace Pbl3.DTOs.Bookings
         public decimal SeatFee { get; set; }
         public decimal UpgradeFee { get; set; }
         public string PaymentMethod { get; set; }
+        public string? CodeTransaction { get; set; }
     }
 }

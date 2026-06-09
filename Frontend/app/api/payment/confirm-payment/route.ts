@@ -4,12 +4,10 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    // Forward the request to the local C# backend.
-    // NEXT_PUBLIC_API_BASE_URL is usually http://localhost:5290
-    let backendBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:5290";
-    if (backendBaseUrl.includes("localhost")) {
-      backendBaseUrl = backendBaseUrl.replace("localhost", "127.0.0.1");
-    }
+    // This route runs on the Next server, so it should call the backend
+    // through loopback instead of the LAN IP that browsers use.
+    const backendBaseUrl =
+      process.env.BACKEND_INTERNAL_API_BASE_URL || "http://127.0.0.1:5290";
     const confirmUrl = `${backendBaseUrl}/api/payment/confirm-payment`;
     
     console.log(`Proxying payment confirmation to C# backend: ${confirmUrl}`);
