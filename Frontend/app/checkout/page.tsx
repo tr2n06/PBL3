@@ -31,10 +31,7 @@ function CheckoutContent() {
 
         setLoading(true);
         try {
-            const backendParam = searchParams.get('backend');
-            const confirmUrl = backendParam 
-                ? `${backendParam}/api/payment/confirm-payment`
-                : `http://localhost:5290/api/payment/confirm-payment`;
+            const confirmUrl = "/api/payment/confirm-payment";
             
             const response = await fetch(confirmUrl, {
                 method: 'POST',

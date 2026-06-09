@@ -38,11 +38,7 @@ namespace Pbl3.Services.Implementation
 
         public async Task<object> ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, int? loggedInUserId, string? userType, string? clientHost)
         {
-            string host = string.IsNullOrEmpty(clientHost) ? GetLocalIPAddress() : clientHost;
-            if (host == "127.0.0.1" || host == "::1")
-            {
-                host = "localhost";
-            }
+            string host = (string.IsNullOrEmpty(clientHost) || clientHost == "localhost" || clientHost == "127.0.0.1" || clientHost == "::1") ? GetLocalIPAddress() : clientHost;
 
             // Validate payment method based on user role
             string method = request.paymentMethod?.ToLower();
