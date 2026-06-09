@@ -6,6 +6,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { completePayment } from "@/lib/payment-api";
 import { getCurrentUser } from "@/lib/profile-api";
+import HeroSlider from "@/components/landing/hero-slider";
+import { Destinations } from "@/components/landing/destinations";
+import { Deals } from "@/components/landing/deals";
+import { Contact } from "@/components/landing/contact";
+import type { ActivePromotionItem } from "@/lib/employee-promotions-api";
 import {
   Card,
   CardContent,
@@ -785,6 +790,41 @@ export default function CustomerBookingPage() {
     };
 
     loadRewardPoints();
+
+    // Check if we need to resume a guest booking
+    const pendingBooking = localStorage.getItem("pendingGuestBooking");
+    if (pendingBooking) {
+      try {
+        const state = JSON.parse(pendingBooking);
+        if (state.tripType) setTripType(state.tripType);
+        if (state.from) setFrom(state.from);
+        if (state.to) setTo(state.to);
+        if (state.departDate) setDepartDate(state.departDate);
+        if (state.returnDate) setReturnDate(state.returnDate);
+        if (state.adultCount) setAdultCount(state.adultCount);
+        if (state.childCount) setChildCount(state.childCount);
+        if (state.infantCount) setInfantCount(state.infantCount);
+        if (state.searched !== undefined) setSearched(state.searched);
+        if (state.view) setView(state.view);
+        if (state.selectedFlight) setSelectedFlight(state.selectedFlight);
+        if (state.selectedReturnFlight) setSelectedReturnFlight(state.selectedReturnFlight);
+        if (state.selectedClass) setSelectedClass(state.selectedClass);
+        if (state.passengerClasses) setPassengerClasses(state.passengerClasses);
+        if (state.chosenSeats) setChosenSeats(state.chosenSeats);
+        if (state.chosenTypes) setChosenTypes(state.chosenTypes);
+        if (state.usedSeatSelection) setUsedSeatSelection(state.usedSeatSelection);
+        if (state.chosenReturnSeats) setChosenReturnSeats(state.chosenReturnSeats);
+        if (state.chosenReturnTypes) setChosenReturnTypes(state.chosenReturnTypes);
+        if (state.usedReturnSeatSelection) setUsedReturnSeatSelection(state.usedReturnSeatSelection);
+        if (state.passForms) setPassForms(state.passForms);
+        if (state.extraBaggageKg) setExtraBaggageKg(state.extraBaggageKg);
+        if (state.pointsToUseInput) setPointsToUseInput(state.pointsToUseInput);
+        
+        localStorage.removeItem("pendingGuestBooking");
+      } catch (e) {
+        console.error("Failed to restore pending guest booking state:", e);
+      }
+    }
   }, []);
   const loadSeatAvailability = async (
     flightId: string,
@@ -829,6 +869,39 @@ export default function CustomerBookingPage() {
   const handlePointsInputChange = (value: string) => {
     const clean = value.replace(/\D/g, "");
     setPointsToUseInput(clean || "0");
+  };
+  const handleBookDeal = async (deal: ActivePromotionItem) => {
+    setFrom(deal.departureCode);
+    setTo(deal.arrivalCode);
+    setDepartDate(deal.departureDate);
+    setTripType("oneway");
+    setAdultCount(1);
+    setChildCount(0);
+    setInfantCount(0);
+
+    setSearchLoading(true);
+    setSearchError("");
+    setSearched(true);
+    try {
+      const data = await searchFlights({
+        from: deal.departureCode,
+        to: deal.arrivalCode,
+        departDate: deal.departureDate,
+        returnDate: "",
+        tripType: "oneway",
+        passengers: 1,
+      });
+      setFlights(data.map(mapApiFlightToFlight));
+    } catch (error) {
+      console.error("Search flights failed:", error);
+      setFlights([]);
+      setRoundFlights([]);
+      setSearchError(
+        error instanceof Error ? error.message : "Có lỗi khi tìm chuyến bay",
+      );
+    } finally {
+      setSearchLoading(false);
+    }
   };
   const handleSearch = async () => {
     setSearchLoading(true);
@@ -2110,7 +2183,11 @@ export default function CustomerBookingPage() {
     <div className="space-y-6">
       {/* Hero search */}
       {!searched && (
-        <section className="relative overflow-hidden rounded-[32px]">
+        <>
+          <div className="rounded-[32px] overflow-hidden shadow-md">
+            <HeroSlider />
+          </div>
+          <section className="relative overflow-hidden rounded-[32px]">
           <div
             className="absolute inset-0 bg-cover bg-center"
             style={{
@@ -2385,7 +2462,11 @@ export default function CustomerBookingPage() {
             </Card>
           </div>
         </section>
-      )}
+        <Destinations />
+        <Deals onBookNow={handleBookDeal} />
+        <Contact />
+      </>
+    )}
 
       {/* Flight results */}
       {searched && (

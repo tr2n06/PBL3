@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import type { Flight, TicketClass } from "@/lib/types";
 import { completePayment, confirmSuccessPayment } from "@/lib/payment-api";
+import { getCurrentUser } from "@/lib/profile-api";
 
 // ─── types replicated from booking page ─────────────────────────────────────
 type SeatType = "window" | "aisle" | "middle";
@@ -116,6 +117,19 @@ function GuestPaymentPageContent() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [bookingRef, setBookingRef] = useState<string>("");
   const [viewMode, setViewMode] = useState<"checkout" | "qr-display">("checkout");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const checkLogin = async () => {
+      try {
+        const user = await getCurrentUser();
+        setIsLoggedIn(!!user);
+      } catch (e) {
+        setIsLoggedIn(false);
+      }
+    };
+    checkLogin();
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("tempBooking");
@@ -450,13 +464,15 @@ function GuestPaymentPageContent() {
             </div>
 
             <div className="p-8 bg-gray-50/50">
-              <div className="flex justify-between items-center mb-4">
-                <div className="bg-yellow-100 px-3 py-1.5 rounded-lg border border-yellow-200">
-                  <span className="text-xs font-bold text-yellow-800">
-                    You earned {formatVND(booked.pointsEarned)} points!
-                  </span>
+              {isLoggedIn && booked.pointsEarned > 0 && (
+                <div className="flex justify-between items-center mb-4">
+                  <div className="bg-yellow-100 px-3 py-1.5 rounded-lg border border-yellow-200">
+                    <span className="text-xs font-bold text-yellow-800">
+                      You earned {formatVND(booked.pointsEarned)} points!
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-xs text-gray-400 font-bold uppercase">

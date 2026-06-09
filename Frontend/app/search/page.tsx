@@ -779,15 +779,18 @@ function SearchPageContent() {
   const [extraBaggageKg, setExtraBaggageKg] = useState<number[]>([]);
   const [pointsBalance, setPointsBalance] = useState(0);
   const [pointsToUseInput, setPointsToUseInput] = useState("0");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const loadRewardPoints = async () => {
       try {
         const me = await getCurrentUser();
         setPointsBalance(me.availablePoints ?? 0);
+        setIsLoggedIn(true);
       } catch (error) {
         console.error("Load reward points failed:", error);
         setPointsBalance(0);
+        setIsLoggedIn(false);
       }
     };
 
@@ -892,6 +895,35 @@ function SearchPageContent() {
   const handlePointsInputChange = (value: string) => {
     const clean = value.replace(/\D/g, "");
     setPointsToUseInput(clean || "0");
+  };
+  const handleSaveAndLogin = () => {
+    const guestBookingState = {
+      tripType,
+      from,
+      to,
+      departDate,
+      returnDate,
+      adultCount,
+      childCount,
+      infantCount,
+      searched,
+      view,
+      selectedFlight,
+      selectedReturnFlight,
+      selectedClass,
+      passengerClasses,
+      chosenSeats,
+      chosenTypes,
+      usedSeatSelection,
+      chosenReturnSeats,
+      chosenReturnTypes,
+      usedReturnSeatSelection,
+      passForms,
+      extraBaggageKg,
+      pointsToUseInput,
+    };
+    localStorage.setItem("pendingGuestBooking", JSON.stringify(guestBookingState));
+    router.push("/login");
   };
   const handleSearch = async () => {
     setSearchLoading(true);
@@ -2119,43 +2151,65 @@ function SearchPageContent() {
               <h3 className="text-xl font-bold text-yellow-800 flex items-center gap-2">
                 Point reward
               </h3>
-              <p className="text-sm text-yellow-700 mt-1">
-                Available points:{" "}
-                <strong className="font-bold">{formatVND(pointsBalance)}</strong>
-              </p>
-              <p className="text-[10px] text-yellow-600/80 mt-1 font-bold">
-                1 point = 1 VND discount.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-yellow-900 font-medium">Points to use</Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="Enter points to use"
-                value={pointsToUseInput}
-                onChange={(e) => handlePointsInputChange(e.target.value)}
-                className="bg-white"
-              />
-              <div className="flex justify-between text-xs text-yellow-700">
-                <span>Max usable</span>
-                <span>{formatVND(maxPointsUsable)}</span>
-              </div>
-
-              {Number(pointsToUseInput || 0) > maxPointsUsable && (
-                <p className="text-xs text-red-600">
-                  Entered points exceed the allowed limit. The system will use the maximum valid amount only.
+              {isLoggedIn ? (
+                <>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Available points:{" "}
+                    <strong className="font-bold">{formatVND(pointsBalance)}</strong>
+                  </p>
+                  <p className="text-[10px] text-yellow-600/80 mt-1 font-bold">
+                    1 point = 1 VND discount.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-yellow-700 mt-1">
+                  Log in to use reward points for discount and earn points on this flight!
                 </p>
               )}
             </div>
 
-            <div className="mt-4 p-3 bg-white/60 rounded-xl border border-yellow-200 text-sm font-medium text-yellow-900 flex justify-between">
-              <span>Applied discount</span>
-              <span className="font-bold text-red-600">
-                -{formatVND(pointsUsed)} VND
-              </span>
-            </div>
+            {isLoggedIn ? (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-yellow-900 font-medium">Points to use</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Enter points to use"
+                    value={pointsToUseInput}
+                    onChange={(e) => handlePointsInputChange(e.target.value)}
+                    className="bg-white"
+                  />
+                  <div className="flex justify-between text-xs text-yellow-700">
+                    <span>Max usable</span>
+                    <span>{formatVND(maxPointsUsable)}</span>
+                  </div>
+
+                  {Number(pointsToUseInput || 0) > maxPointsUsable && (
+                    <p className="text-xs text-red-600">
+                      Entered points exceed the allowed limit. The system will use the maximum valid amount only.
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 p-3 bg-white/60 rounded-xl border border-yellow-200 text-sm font-medium text-yellow-900 flex justify-between">
+                  <span>Applied discount</span>
+                  <span className="font-bold text-red-600">
+                    -{formatVND(pointsUsed)} VND
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  onClick={handleSaveAndLogin}
+                  className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl shadow-sm transition-all"
+                >
+                  Log In to Use Points
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card className="border-0 shadow-xl overflow-hidden bg-[#1a3557]">

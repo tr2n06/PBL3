@@ -14,7 +14,7 @@ import Link from "next/link";
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("vi-VN").format(value);
 
-export function Deals() {
+export function Deals({ onBookNow }: { onBookNow?: (flight: ActivePromotionItem) => void } = {}) {
   const [promotionFlights, setPromotionFlights] = useState<
     ActivePromotionItem[]
   >([]);
@@ -155,22 +155,32 @@ export function Deals() {
                         </div>
                       </div>
 
-                      <Button
-                        asChild
-                        className="bg-[#0b5c66] text-white hover:bg-[#094a52]"
-                      >
-                        <Link
-                          href={`/search?from=${encodeURIComponent(
-                            flight.departureCode,
-                          )}&to=${encodeURIComponent(
-                            flight.arrivalCode,
-                          )}&departDate=${encodeURIComponent(
-                            flight.departureDate,
-                          )}&passengers=1&tripType=oneway`}
+                      {onBookNow ? (
+                        <Button
+                          type="button"
+                          onClick={() => onBookNow(flight)}
+                          className="bg-[#0b5c66] text-white hover:bg-[#094a52]"
                         >
                           Book Now
-                        </Link>
-                      </Button>
+                        </Button>
+                      ) : (
+                        <Button
+                          asChild
+                          className="bg-[#0b5c66] text-white hover:bg-[#094a52]"
+                        >
+                          <Link
+                            href={`/search?from=${encodeURIComponent(
+                              flight.departureCode,
+                            )}&to=${encodeURIComponent(
+                              flight.arrivalCode,
+                            )}&departDate=${encodeURIComponent(
+                              flight.departureDate,
+                            )}&passengers=1&tripType=oneway`}
+                          >
+                            Book Now
+                          </Link>
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
