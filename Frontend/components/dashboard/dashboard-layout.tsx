@@ -43,6 +43,7 @@ export function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const roleLabels = {
     customer: "Customer",
@@ -61,22 +62,27 @@ export function DashboardLayout({
   return (
     <div className="flex min-h-screen">
       {/* Desktop Sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r bg-sidebar lg:flex">
-        <div className="flex h-16 items-center gap-2 border-b px-6">
-          {/* Logo → home (user stays logged-in via localStorage) */}
-          <Link href="/" className="flex items-center gap-2">
+      <aside className={cn("fixed inset-y-0 left-0 z-40 hidden flex-col border-r bg-sidebar lg:flex transition-all duration-300", isSidebarCollapsed ? "w-[72px]" : "w-64")}>
+        <div className={cn("flex h-16 items-center gap-2 border-b px-6", isSidebarCollapsed && "justify-center px-0")}>
+          {/* Logo toggles sidebar collapse instead of redirecting */}
+          <button 
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none cursor-pointer"
+          >
             <Image
               src="/logo1.png"
               alt="SkyLine logo"
               width={36}
               height={36}
-              className="h-9 w-9 object-contain"
+              className="h-9 w-9 object-contain shrink-0"
               priority
             />
-            <span className="text-lg font-bold text-sidebar-foreground">
-              SkyLine
-            </span>
-          </Link>
+            {!isSidebarCollapsed && (
+              <span className="text-lg font-bold text-sidebar-foreground">
+                SkyLine
+              </span>
+            )}
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1 p-4">
@@ -89,14 +95,16 @@ export function DashboardLayout({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors",
+                  isSidebarCollapsed ? "justify-center px-2" : "px-3",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
+                title={isSidebarCollapsed ? item.label : undefined}
               >
-                <Icon className="h-5 w-5" />
-                {item.label}
+                <Icon className="h-5 w-5 shrink-0" />
+                {!isSidebarCollapsed && <span>{item.label}</span>}
               </Link>
             );
           })}
@@ -105,16 +113,20 @@ export function DashboardLayout({
         <div className="border-t p-4">
           <Link
             href="/"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            className={cn(
+              "flex items-center gap-3 rounded-lg py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              isSidebarCollapsed ? "justify-center px-2" : "px-3"
+            )}
+            title={isSidebarCollapsed ? "Back to Home" : undefined}
           >
-            <Home className="h-5 w-5" />
-            Back to Home
+            <Home className="h-5 w-5 shrink-0" />
+            {!isSidebarCollapsed && <span>Back to Home</span>}
           </Link>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex flex-1 flex-col lg:pl-64">
+      <div className={cn("flex flex-1 flex-col transition-all duration-300", isSidebarCollapsed ? "lg:pl-[72px]" : "lg:pl-64")}>
         {/* Top Header */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 lg:px-6">
           {/* Mobile Menu */}
@@ -180,8 +192,11 @@ export function DashboardLayout({
             </SheetContent>
           </Sheet>
 
-          {/* Logo for mobile – links back to home */}
-          <Link href="/" className="flex items-center gap-2 lg:hidden">
+          {/* Logo for mobile – toggles mobile menu Sheet */}
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+            className="flex items-center gap-2 lg:hidden hover:opacity-80 transition-opacity focus:outline-none cursor-pointer"
+          >
             <Image
               src="/logo1.png"
               alt="SkyLine logo"
@@ -191,7 +206,7 @@ export function DashboardLayout({
               priority
             />
             <span className="font-bold">SkyLine</span>
-          </Link>
+          </button>
 
           {/* Spacer for desktop */}
           <div className="hidden lg:block" />
