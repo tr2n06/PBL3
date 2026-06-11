@@ -56,6 +56,7 @@ namespace Pbl3.Repositories.Implementation
                                  where (b.codeBaggage == dto.codeBaggage)
                                  select new BaggageResponseDTO
                                  {
+                                     codeBaggage = b.codeBaggage,
                                      codeTransaction = b.codeTransaction,
                                      codeTicket = b.codeTicket,
                                      cabinWeight = b.type == "cabin" ? b.weight : 0,
@@ -70,6 +71,7 @@ namespace Pbl3.Repositories.Implementation
                                    where b.codeTicket == codeTicket
                                    select new BaggageResponseDTO
                                    {
+                                       codeBaggage = b.codeBaggage,
                                        codeTransaction = b.codeTransaction,
                                        codeTicket = b.codeTicket,
                                        cabinWeight = b.type == "cabin" ? b.weight : 0,

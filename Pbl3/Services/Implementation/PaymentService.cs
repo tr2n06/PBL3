@@ -39,6 +39,87 @@ namespace Pbl3.Services.Implementation
             _cache = cache;
         }
 
+        private static string? GetPassengerSeatCode(IReadOnlyList<string>? seatNumbers, int passengerIndex, int firstAdultIndex, string passengerType)
+        {
+            if (passengerType == "infant")
+            {
+                return firstAdultIndex != -1 && seatNumbers != null && seatNumbers.Count > firstAdultIndex
+                    ? seatNumbers[firstAdultIndex]
+                    : null;
+            }
+
+            return seatNumbers != null && seatNumbers.Count > passengerIndex
+                ? seatNumbers[passengerIndex]
+                : null;
+        }
+
+        private static (int checkedWeight, int cabinWeight) GetBaggageAllowance(string? ticketClass)
+        {
+            return ticketClass switch
+            {
+                "firstClass" => (35, 12),
+                "business" => (25, 7),
+                _ => (20, 0)
+            };
+        }
+
+        private async Task ValidateRequestedSeatsAsync(
+            CompletePaymentRequestDTO request,
+            string codeFlight,
+            DateOnly departureDate,
+            TimeOnly departureTime,
+            string? returnCodeFlight,
+            DateOnly? returnDepartureDate,
+            TimeOnly? returnDepartureTime,
+            int firstAdultIndex)
+        {
+            var requestedSeats = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < request.passengers.Count; i++)
+            {
+                var passenger = request.passengers[i];
+                if (passenger.passengerType == "infant")
+                {
+                    continue;
+                }
+
+                var outboundSeat = GetPassengerSeatCode(request.seatNumbers, i, firstAdultIndex, passenger.passengerType);
+                if (!string.IsNullOrWhiteSpace(outboundSeat))
+                {
+                    string key = $"{codeFlight}|{departureDate:yyyy-MM-dd}|{departureTime:HH:mm:ss}|{outboundSeat}";
+                    if (!requestedSeats.Add(key))
+                    {
+                        throw new InvalidOperationException($"Seat {outboundSeat} is selected more than once on flight {codeFlight}. Please select a different seat.");
+                    }
+
+                    bool isAlreadyBooked = await _paymentRepository.IsSeatAlreadyBookedAsync(outboundSeat, codeFlight, departureDate, departureTime);
+                    if (isAlreadyBooked)
+                    {
+                        throw new InvalidOperationException($"Seat {outboundSeat} is already booked on flight {codeFlight} at {departureDate} {departureTime}. Please select a different seat.");
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(returnCodeFlight) && returnDepartureDate.HasValue && returnDepartureTime.HasValue)
+                {
+                    var returnSeat = GetPassengerSeatCode(request.returnSeatNumbers, i, firstAdultIndex, passenger.passengerType);
+                    if (!string.IsNullOrWhiteSpace(returnSeat))
+                    {
+                        string key = $"{returnCodeFlight}|{returnDepartureDate:yyyy-MM-dd}|{returnDepartureTime:HH:mm:ss}|{returnSeat}";
+                        if (!requestedSeats.Add(key))
+                        {
+                            throw new InvalidOperationException($"Seat {returnSeat} is selected more than once on return flight {returnCodeFlight}. Please select a different seat.");
+                        }
+
+                        bool isReturnAlreadyBooked = await _paymentRepository.IsSeatAlreadyBookedAsync(returnSeat, returnCodeFlight, returnDepartureDate.Value, returnDepartureTime.Value);
+                        if (isReturnAlreadyBooked)
+                        {
+                            throw new InvalidOperationException($"Seat {returnSeat} is already booked on return flight {returnCodeFlight} at {returnDepartureDate.Value} {returnDepartureTime.Value}. Please select a different seat.");
+                        }
+                    }
+                }
+            }
+        }
+
         public async Task<object> ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, int? loggedInUserId, string? userType, string? clientHost)
         {
             string host = (string.IsNullOrEmpty(clientHost) || clientHost == "localhost" || clientHost == "127.0.0.1" || clientHost == "::1") ? GetLocalIPAddress() : clientHost;
@@ -110,6 +191,28 @@ namespace Pbl3.Services.Implementation
             DateOnly departureDate = DateOnly.ParseExact(parts[1], "ddMMyyyy");
             TimeOnly departureTime = TimeOnly.ParseExact(parts[2], "HHmmss");
 
+            string? retCodeFlight = null;
+            DateOnly? retDepartureDate = null;
+            TimeOnly? retDepartureTime = null;
+            if (!string.IsNullOrEmpty(request.returnFlightId))
+            {
+                string[] retParts = request.returnFlightId.Split('-');
+                retCodeFlight = retParts[0];
+                retDepartureDate = DateOnly.ParseExact(retParts[1], "ddMMyyyy");
+                retDepartureTime = TimeOnly.ParseExact(retParts[2], "HHmmss");
+            }
+
+            int firstAdultIdx = request.passengers.FindIndex(pass => pass.passengerType == "adult");
+            await ValidateRequestedSeatsAsync(
+                request,
+                codeFlight,
+                departureDate,
+                departureTime,
+                retCodeFlight,
+                retDepartureDate,
+                retDepartureTime,
+                firstAdultIdx);
+
             bool isQR = request.paymentMethod.ToLower() == "qr" || request.paymentMethod.ToLower() == "pending";
             string transactionStatus = isQR ? "pending" : "confirmed";
 
@@ -149,8 +252,6 @@ namespace Pbl3.Services.Implementation
                 }
             }
 
-            int firstAdultIdx = request.passengers.FindIndex(pass => pass.passengerType == "adult");
-
             // 6. Create Tickets
             for (int i = 0; i < request.passengers.Count; i++)
             {
@@ -168,15 +269,7 @@ namespace Pbl3.Services.Implementation
                     finalPrice = adultBasePrice * 0.8m;
                 }
 
-                string seatCode = null;
-                if (p.passengerType == "infant")
-                {
-                    seatCode = (firstAdultIdx != -1 && request.seatNumbers.Count > firstAdultIdx) ? request.seatNumbers[firstAdultIdx] : null;
-                }
-                else
-                {
-                    seatCode = (request.seatNumbers.Count > i) ? request.seatNumbers[i] : null;
-                }
+                string seatCode = GetPassengerSeatCode(request.seatNumbers, i, firstAdultIdx, p.passengerType);
 
                 var ticketDto = new TicketRequestDTO
                 {
@@ -197,30 +290,13 @@ namespace Pbl3.Services.Implementation
                     dateOfBirth = DateOnly.Parse(p.dateOfBirth)
                 };
 
-                // Safety check: verify if the seat is already booked/pending in the database (skip for infants)
-                if (!string.IsNullOrEmpty(ticketDto.codeSeat) && p.passengerType != "infant")
-                {
-                    bool isAlreadyBooked = await _paymentRepository.IsSeatAlreadyBookedAsync(ticketDto.codeSeat, codeFlight, departureDate, departureTime);
-                    if (isAlreadyBooked)
-                    {
-                        throw new InvalidOperationException($"Seat {ticketDto.codeSeat} is already booked on flight {codeFlight} at {departureDate} {departureTime}. Please select a different seat.");
-                    }
-                }
-
                 await _ticketService.insertTicket(ticketDto);
 
                 // Add baggage if applicable
-                int checkedB = 0, cabinB = 0;
-                string seatType = (request.seatTypes != null && request.seatTypes.Count > i) ? request.seatTypes[i] : "economy";
-                if (seatType == "firstClass") {
-                    checkedB = 35; cabinB = 12;
-                }
-                else if (seatType == "business") {
-                    checkedB = 25; cabinB = 7;
-                }
-                else {
-                    checkedB = 20; cabinB = 0;
-                }
+                string outboundClass = request.ticketClasses != null && request.ticketClasses.Count > i ? request.ticketClasses[i] : "economy";
+                var baggageAllowance = GetBaggageAllowance(outboundClass);
+                int checkedB = baggageAllowance.checkedWeight;
+                int cabinB = baggageAllowance.cabinWeight;
                 if (request.extraBaggageKg != null && request.extraBaggageKg.Count > i && request.extraBaggageKg[i] > 0)
                 {
                     checkedB += request.extraBaggageKg[i];
@@ -260,13 +336,8 @@ namespace Pbl3.Services.Implementation
                 }
 
                 // If return flight is selected
-                if (!string.IsNullOrEmpty(request.returnFlightId))
+                if (!string.IsNullOrEmpty(retCodeFlight) && retDepartureDate.HasValue && retDepartureTime.HasValue)
                 {
-                    string[] retParts = request.returnFlightId.Split('-');
-                    string retCodeFlight = retParts[0];
-                    DateOnly retDepartureDate = DateOnly.ParseExact(retParts[1], "ddMMyyyy");
-                    TimeOnly retDepartureTime = TimeOnly.ParseExact(retParts[2], "HHmmss");
-
                     string returnTicketCode = await _ticketService.createTicketCode();
 
                     decimal returnAdultBasePrice = (firstAdultIdx != -1 && request.returnBasePrices != null && request.returnBasePrices.Count > firstAdultIdx) ? request.returnBasePrices[firstAdultIdx] : 0;
@@ -280,23 +351,15 @@ namespace Pbl3.Services.Implementation
                         returnFinalPrice = returnAdultBasePrice * 0.8m;
                     }
 
-                    string returnSeatCode = null;
-                    if (p.passengerType == "infant")
-                    {
-                        returnSeatCode = (firstAdultIdx != -1 && request.returnSeatNumbers != null && request.returnSeatNumbers.Count > firstAdultIdx) ? request.returnSeatNumbers[firstAdultIdx] : null;
-                    }
-                    else
-                    {
-                        returnSeatCode = (request.returnSeatNumbers != null && request.returnSeatNumbers.Count > i) ? request.returnSeatNumbers[i] : null;
-                    }
+                    string returnSeatCode = GetPassengerSeatCode(request.returnSeatNumbers, i, firstAdultIdx, p.passengerType);
 
                     var returnTicketDto = new TicketRequestDTO
                     {
                         codeTicket = returnTicketCode,
                         codeBooking = bookingRef,
                         codeFlight = retCodeFlight,
-                        departureDate = retDepartureDate,
-                        departureTime = retDepartureTime,
+                        departureDate = retDepartureDate.Value,
+                        departureTime = retDepartureTime.Value,
                         codeSeat = returnSeatCode,
                         name = $"{p.firstName} {p.middleName} {p.lastName}".Replace("  ", " ").Trim().ToUpper(),
                         gender = p.gender,
@@ -309,30 +372,14 @@ namespace Pbl3.Services.Implementation
                         dateOfBirth = DateOnly.Parse(p.dateOfBirth)
                     };
 
-                    // Safety check for return flight seat (skip for infants)
-                    if (!string.IsNullOrEmpty(returnTicketDto.codeSeat) && p.passengerType != "infant")
-                    {
-                        bool isReturnAlreadyBooked = await _paymentRepository.IsSeatAlreadyBookedAsync(returnTicketDto.codeSeat, retCodeFlight, retDepartureDate, retDepartureTime);
-                        if (isReturnAlreadyBooked)
-                        {
-                            throw new InvalidOperationException($"Seat {returnTicketDto.codeSeat} is already booked on return flight {retCodeFlight} at {retDepartureDate} {retDepartureTime}. Please select a different seat.");
-                        }
-                    }
-
                     await _ticketService.insertTicket(returnTicketDto);
 
-                    string returnSeatType = (request.returnSeatTypes != null && request.returnSeatTypes.Count > i) 
-                        ? request.returnSeatTypes[i] 
-                        : ((request.seatTypes != null && request.seatTypes.Count > i) ? request.seatTypes[i] : "economy");
-                    if (returnSeatType == "firstClass") {
-                        checkedB = 35; cabinB = 12;
-                    }
-                    else if (returnSeatType == "business") {
-                        checkedB = 25; cabinB = 7;
-                    }
-                    else {
-                        checkedB = 20; cabinB = 0;
-                    }
+                    string returnClass = request.returnTicketClasses != null && request.returnTicketClasses.Count > i
+                        ? request.returnTicketClasses[i]
+                        : outboundClass;
+                    baggageAllowance = GetBaggageAllowance(returnClass);
+                    checkedB = baggageAllowance.checkedWeight;
+                    cabinB = baggageAllowance.cabinWeight;
                     if (request.extraBaggageKg != null && request.extraBaggageKg.Count > i && request.extraBaggageKg[i] > 0)
                     {
                         checkedB += request.extraBaggageKg[i];
@@ -364,8 +411,8 @@ namespace Pbl3.Services.Implementation
                         {
                             codeSeat = returnTicketDto.codeSeat,
                             codeFlight = retCodeFlight,
-                            departureDate = retDepartureDate,
-                            departureTime = retDepartureTime,
+                            departureDate = retDepartureDate.Value,
+                            departureTime = retDepartureTime.Value,
                             isBooked = true
                         });
                     }

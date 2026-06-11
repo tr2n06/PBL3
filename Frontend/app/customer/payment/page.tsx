@@ -693,7 +693,7 @@ export default function CustomerPaymentPage() {
                       Points Used
                     </span>
                     <span className="font-bold text-red-500">
-                      -{formatVND(booked.pointsUsed)} VND
+                      -{formatVND(booked.pointsUsed * 100000)} VND
                     </span>
                   </div>
                 )}

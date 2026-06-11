@@ -121,10 +121,21 @@ function GuestPaymentPageContent() {
 
   useEffect(() => {
     const checkLogin = async () => {
+      const email = localStorage.getItem("userEmail");
+      const role = localStorage.getItem("userRole");
+      if (!email || !role) {
+        setIsLoggedIn(false);
+        return;
+      }
+
       try {
         const user = await getCurrentUser();
         setIsLoggedIn(!!user);
       } catch (e) {
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("vflight_user_points");
         setIsLoggedIn(false);
       }
     };
@@ -730,7 +741,7 @@ function GuestPaymentPageContent() {
                       Points Used
                     </span>
                     <span className="font-bold text-red-500">
-                      -{formatVND(booked.pointsUsed)} VND
+                      -{formatVND(booked.pointsUsed * 100000)} VND
                     </span>
                   </div>
                 )}

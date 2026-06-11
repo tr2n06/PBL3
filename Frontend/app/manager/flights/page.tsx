@@ -281,19 +281,21 @@ const FlightForm = ({
     )}
 
     {/* Pricing Section */}
-    <div className="space-y-2">
-      <Label htmlFor="priceFlight">Price</Label>
-      <Input
-        id="priceFlight"
-        type="text"
-        placeholder="500000"
-        value={formData.priceFlight}
-        onChange={(e) => {
-          const val = e.target.value.replace(/[^0-9]/g, "");
-          setFormData({ ...formData, priceFlight: val });
-        }}
-      />
-    </div>
+    {isEdit && (
+      <div className="space-y-2">
+        <Label htmlFor="priceFlight">Price</Label>
+        <Input
+          id="priceFlight"
+          type="text"
+          placeholder="500000"
+          value={formData.priceFlight}
+          onChange={(e) => {
+            const val = e.target.value.replace(/[^0-9]/g, "");
+            setFormData({ ...formData, priceFlight: val });
+          }}
+        />
+      </div>
+    )}
 
     {/* Seats Section */}
     {isEdit && (
@@ -499,8 +501,7 @@ export default function FlightsPage() {
       !formData.departureTime.trim() ||
       !formData.arrivalCode.trim() ||
       !formData.arrivalDate.trim() ||
-      !formData.arrivalTime.trim() ||
-      !formData.priceFlight.trim()
+      !formData.arrivalTime.trim()
     ) {
       alert("Please fill in all fields.");
       return;
@@ -520,12 +521,6 @@ export default function FlightsPage() {
       return;
     }
 
-    const price = parseFloat(formData.priceFlight);
-    if (isNaN(price) || price <= 0) {
-      alert("Please enter a valid price greater than 0.");
-      return;
-    }
-
     try {
       const created = await createFlight({
         flightNumber: formData.flightNumber,
@@ -536,7 +531,6 @@ export default function FlightsPage() {
         arrivalDate: formData.arrivalDate,
         arrivalTime: formData.arrivalTime,
         status: "scheduled",
-        price: price,
       });
 
       setShowCreateDialog(false);

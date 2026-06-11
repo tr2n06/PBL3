@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { completePayment } from "@/lib/payment-api";
 import { getCurrentUser } from "@/lib/profile-api";
 import { Header } from "@/components/landing/header";
 import { Footer } from "@/components/landing/footer";
@@ -35,6 +34,7 @@ import {
   Users,
   Search,
   Clock,
+  ArrowLeft,
   ArrowRight,
   MapPin,
   X,
@@ -145,11 +145,23 @@ interface SeatColDef {
 }
 
 /** Surcharge only applies when user CHOOSES a seat (not for auto-assigned) */
+const SEAT_SELECTION_FEE = 100_000;
 const SEAT_SURCHARGE: Record<SeatType, number> = {
   window: 350_000,
   aisle: 150_000,
   middle: 0,
 };
+
+function getSeatSelectionFee(type: SeatType) {
+  return SEAT_SELECTION_FEE + SEAT_SURCHARGE[type];
+}
+
+function getSelectedSeatFeeTotal(seats: string[], types: SeatType[]) {
+  return seats.reduce(
+    (sum, seat, i) => sum + (seat ? getSeatSelectionFee(types[i] ?? "middle") : 0),
+    0,
+  );
+}
 
 const SEAT_TYPE_INFO: Record<
   SeatType,
@@ -345,10 +357,46 @@ function mapApiFlightToFlight(item: FlightApiItem): Flight {
   };
 }
 
+function formatInputDate(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 /** Today's date in YYYY-MM-DD for min/max attributes */
-const TODAY = new Date().toISOString().split("T")[0];
+const TODAY = formatInputDate(new Date());
 type PassengerType = "adult" | "child" | "infant";
 type GenderType = "male" | "female" | "other";
+
+function addYearsToInputDate(inputDate: string, years: number): string {
+  const [year, month, day] = inputDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setFullYear(date.getFullYear() + years);
+  return formatInputDate(date);
+}
+
+const PASSENGER_DOB_RULES: Partial<
+  Record<PassengerType, { min: string; message: string }>
+> = {
+  infant: {
+    min: addYearsToInputDate(TODAY, -2),
+    message: "Infant must be 2 years old or younger.",
+  },
+  child: {
+    min: addYearsToInputDate(TODAY, -16),
+    message: "Child must be 16 years old or younger.",
+  },
+};
+
+function getDateOfBirthError(passenger: PassengerInfo): string {
+  const rule = PASSENGER_DOB_RULES[passenger.passengerType];
+  if (!passenger.dateOfBirth || !rule) return "";
+  if (passenger.dateOfBirth < rule.min || passenger.dateOfBirth > TODAY) {
+    return rule.message;
+  }
+  return "";
+}
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface PassengerInfo {
   passengerType: PassengerType;
@@ -428,10 +476,7 @@ function AirplaneSeatMap({
   takenSeats = [],
 }: SeatMapProps) {
   const { rows, left, right, label, layout } = CABIN_CONFIG[ticketClass];
-  const totalSurcharge = selectedTypes.reduce(
-    (s, t) => s + SEAT_SURCHARGE[t],
-    0,
-  );
+  const totalSurcharge = getSelectedSeatFeeTotal(selectedSeats, selectedTypes);
   const ready = selectedSeats.length === passengerCount;
 
   const SeatBtn = ({
@@ -465,7 +510,7 @@ function AirplaneSeatMap({
         title={
           occupied
             ? "Taken"
-            : `${SEAT_TYPE_INFO[type].label} · ${SEAT_SURCHARGE[type] > 0 ? "+" + formatVND(SEAT_SURCHARGE[type]) + " VND" : "Free"}`
+            : `${SEAT_TYPE_INFO[type].label} · ${formatVND(SEAT_SELECTION_FEE)} VND selection${SEAT_SURCHARGE[type] > 0 ? " + " + formatVND(SEAT_SURCHARGE[type]) + " VND" : ""}`
         }
         className={cls}
       >
@@ -495,9 +540,7 @@ function AirplaneSeatMap({
               {SEAT_TYPE_INFO[type].label}
             </span>
             <span className="text-gray-400">
-              {SEAT_SURCHARGE[type] > 0
-                ? `+${formatVND(SEAT_SURCHARGE[type])} VND`
-                : "Free"}
+              +{formatVND(getSeatSelectionFee(type))} VND
             </span>
           </span>
         ))}
@@ -663,9 +706,7 @@ function AirplaneSeatMap({
                   </span>
                 </span>
                 <span>
-                  {SEAT_SURCHARGE[t] > 0
-                    ? `+${formatVND(SEAT_SURCHARGE[t])} VND`
-                    : "Free"}
+                  +{formatVND(getSeatSelectionFee(t))} VND
                 </span>
               </div>
             );
@@ -771,6 +812,7 @@ function SearchPageContent() {
   const [passForms, setPassForms] = useState<PassengerInfo[]>([]);
   const [phoneErrors, setPhoneErrors] = useState<Record<number, string>>({});
   const [emailErrors, setEmailErrors] = useState<Record<number, string>>({});
+  const [dobErrors, setDobErrors] = useState<Record<number, string>>({});
 
   // Result
   const [booked, setBooked] = useState<BookedTicket | null>(null);
@@ -783,12 +825,24 @@ function SearchPageContent() {
 
   useEffect(() => {
     const loadRewardPoints = async () => {
+      const email = localStorage.getItem("userEmail");
+      const role = localStorage.getItem("userRole");
+      if (!email || !role) {
+        setPointsBalance(0);
+        setIsLoggedIn(false);
+        return;
+      }
+
       try {
         const me = await getCurrentUser();
         setPointsBalance(me.availablePoints ?? 0);
         setIsLoggedIn(true);
       } catch (error) {
         console.error("Load reward points failed:", error);
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("vflight_user_points");
         setPointsBalance(0);
         setIsLoggedIn(false);
       }
@@ -1033,8 +1087,8 @@ function SearchPageContent() {
 
   // Surcharge only when user explicitly used seat map
   const totalSurcharge =
-    (usedSeatSelection ? chosenTypes.reduce((s, t) => s + SEAT_SURCHARGE[t], 0) : 0) +
-    (usedReturnSeatSelection ? chosenReturnTypes.reduce((s, t) => s + SEAT_SURCHARGE[t], 0) : 0);
+    (usedSeatSelection ? getSelectedSeatFeeTotal(chosenSeats, chosenTypes) : 0) +
+    (usedReturnSeatSelection ? getSelectedSeatFeeTotal(chosenReturnSeats, chosenReturnTypes) : 0);
 
   // ── Handlers ──
   const swapAirports = () => {
@@ -1204,6 +1258,7 @@ function SearchPageContent() {
     setPassForms(passengerSeed);
     setPhoneErrors({});
     setEmailErrors({});
+    setDobErrors({});
     setDialogOpen(false);
     setView("info");
   };
@@ -1270,12 +1325,36 @@ function SearchPageContent() {
     updatePassenger(idx, "email", value);
   };
 
+  const handleDateOfBirthInput = (idx: number, value: string) => {
+    const passenger = { ...passForms[idx], dateOfBirth: value };
+    const error = getDateOfBirthError(passenger);
+    setDobErrors((prev) => {
+      const next = { ...prev };
+      if (error) {
+        next[idx] = error;
+      } else {
+        delete next[idx];
+      }
+      return next;
+    });
+    updatePassenger(idx, "dateOfBirth", value);
+  };
+
   const handleSubmitInfo = (e: React.FormEvent) => {
     e.preventDefault();
     // Check for validation errors
     const hasPhoneErr = Object.keys(phoneErrors).length > 0;
     const hasEmailErr = Object.keys(emailErrors).length > 0;
-    if (hasPhoneErr || hasEmailErr) return;
+    const nextDobErrors = passForms.reduce<Record<number, string>>(
+      (errors, passenger, idx) => {
+        const error = getDateOfBirthError(passenger);
+        if (error) errors[idx] = error;
+        return errors;
+      },
+      {},
+    );
+    setDobErrors(nextDobErrors);
+    if (hasPhoneErr || hasEmailErr || Object.keys(nextDobErrors).length > 0) return;
     if (!selectedFlight) return;
 
     setExtraBaggageKg(passForms.map(() => 0));
@@ -1287,12 +1366,12 @@ function SearchPageContent() {
 
     const outboundSurcharge = chosenTypes.reduce(
       (s, t, i) =>
-        s + (usedSeatSelection && chosenSeats[i] ? SEAT_SURCHARGE[t] : 0),
+        s + (usedSeatSelection && chosenSeats[i] ? getSeatSelectionFee(t) : 0),
       0,
     );
     const inboundSurcharge = chosenReturnTypes.reduce(
       (s, t, i) =>
-        s + (usedReturnSeatSelection && chosenReturnSeats[i] ? SEAT_SURCHARGE[t] : 0),
+        s + (usedReturnSeatSelection && chosenReturnSeats[i] ? getSeatSelectionFee(t) : 0),
       0,
     );
     const surcharge = outboundSurcharge + inboundSurcharge;
@@ -1304,57 +1383,21 @@ function SearchPageContent() {
       surcharge +
       baggageTotal;
 
-    const maxPointsUsable = Math.min(pointsBalance, totalWithoutDiscount);
+    const maxPointsUsable = Math.min(pointsBalance, Math.floor(totalWithoutDiscount / 100000));
     const parsedPointsToUse = Number(pointsToUseInput || 0);
     const pointsUsed = Math.max(0, Math.min(parsedPointsToUse, maxPointsUsable));
-    const finalTotal = totalWithoutDiscount - pointsUsed;
+    const pointsDiscount = pointsUsed * 100000;
+    const finalTotal = totalWithoutDiscount - pointsDiscount;
 
     const finalizedPassForms = passForms.map((p) => ({
       ...p,
       phone: (p.phone || "").startsWith("0") ? p.phone.substring(1) : p.phone,
     }));
 
-    // Pre-create the booking in "pending" status in database
-    let bookingRef = "";
-    try {
-      const pendingRes = await completePayment({
-        flightId: selectedFlight.id,
-        returnFlightId: selectedReturnFlight?.id,
-        ticketClasses: passengerClasses,
-        returnTicketClasses: selectedReturnFlight ? passengerClasses : undefined,
-        seatNumbers: chosenSeats,
-        returnSeatNumbers: chosenReturnSeats,
-        passengers: finalizedPassForms,
-        passengerCounts: {
-          adults: adultPassengers,
-          children: childPassengers,
-          infants: infantPassengers,
-        },
-        basePrices,
-        returnBasePrices,
-        seatTypes: chosenTypes,
-        returnSeatTypes: chosenReturnTypes,
-        seatSurchargeTotal: surcharge,
-        totalPrice: finalTotal,
-        extraBaggageKg,
-        pointsUsed,
-        pointsEarned: Math.floor(finalTotal / 1000000),
-        paymentMethod: "qr"
-      });
-
-      if (pendingRes && pendingRes.bookingRef) {
-        bookingRef = pendingRes.bookingRef;
-      }
-    } catch (err) {
-      console.error("Pre-checkout booking creation failed:", err);
-      alert("Không khởi tạo được đơn đặt vé. Vui lòng thử lại!");
-      return;
-    }
-
     localStorage.setItem(
       "tempBooking",
       JSON.stringify({
-        bookingRef: bookingRef,
+        bookingRef: "",
         flight: selectedFlight,
         returnFlight: selectedReturnFlight,
         ticketClasses: passengerClasses,
@@ -1742,12 +1785,27 @@ function SearchPageContent() {
                         <Input
                           required
                           type="date"
+                          min={
+                            PASSENGER_DOB_RULES[
+                              passForms[idx]?.passengerType ?? "adult"
+                            ]?.min
+                          }
                           max={TODAY}
                           value={passForms[idx]?.dateOfBirth ?? ""}
                           onChange={(e) =>
-                            updatePassenger(idx, "dateOfBirth", e.target.value)
+                            handleDateOfBirthInput(idx, e.target.value)
+                          }
+                          className={
+                            dobErrors[idx]
+                              ? "border-red-400 focus-visible:ring-red-300"
+                              : ""
                           }
                         />
+                        {dobErrors[idx] && (
+                          <p className="text-xs text-red-500 flex items-center gap-1">
+                            ⚠ {dobErrors[idx]}
+                          </p>
+                        )}
                         <p className="text-[10px] text-gray-400">
                           Format: DD/MM/YYYY – use the calendar icon to pick a
                           date
@@ -2005,12 +2063,12 @@ function SearchPageContent() {
   if (view === "summary") {
     const outboundSurcharge = chosenTypes.reduce(
       (s, t, i) =>
-        s + (usedSeatSelection && chosenSeats[i] ? SEAT_SURCHARGE[t] : 0),
+        s + (usedSeatSelection && chosenSeats[i] ? getSeatSelectionFee(t) : 0),
       0,
     );
     const inboundSurcharge = chosenReturnTypes.reduce(
       (s, t, i) =>
-        s + (usedReturnSeatSelection && chosenReturnSeats[i] ? SEAT_SURCHARGE[t] : 0),
+        s + (usedReturnSeatSelection && chosenReturnSeats[i] ? getSeatSelectionFee(t) : 0),
       0,
     );
     const surcharge = outboundSurcharge + inboundSurcharge;
@@ -2022,10 +2080,11 @@ function SearchPageContent() {
       surcharge +
       baggageTotal;
 
-    const maxPointsUsable = Math.min(pointsBalance, totalWithoutDiscount);
+    const maxPointsUsable = Math.min(pointsBalance, Math.floor(totalWithoutDiscount / 100000));
     const parsedPointsToUse = Number(pointsToUseInput || 0);
     const pointsUsed = Math.max(0, Math.min(parsedPointsToUse, maxPointsUsable));
-    const finalTotal = totalWithoutDiscount - pointsUsed;
+    const pointsDiscount = pointsUsed * 100000;
+    const finalTotal = totalWithoutDiscount - pointsDiscount;
 
     return (
       <div className="flex flex-col min-h-screen justify-between bg-slate-50/30">
@@ -2158,7 +2217,7 @@ function SearchPageContent() {
                     <strong className="font-bold">{formatVND(pointsBalance)}</strong>
                   </p>
                   <p className="text-[10px] text-yellow-600/80 mt-1 font-bold">
-                    1 point = 1 VND discount.
+                    1 point = 100,000 VND discount.
                   </p>
                 </>
               ) : (
@@ -2182,7 +2241,7 @@ function SearchPageContent() {
                   />
                   <div className="flex justify-between text-xs text-yellow-700">
                     <span>Max usable</span>
-                    <span>{formatVND(maxPointsUsable)}</span>
+                    <span>{formatVND(maxPointsUsable)} points</span>
                   </div>
 
                   {Number(pointsToUseInput || 0) > maxPointsUsable && (
@@ -2195,7 +2254,7 @@ function SearchPageContent() {
                 <div className="mt-4 p-3 bg-white/60 rounded-xl border border-yellow-200 text-sm font-medium text-yellow-900 flex justify-between">
                   <span>Applied discount</span>
                   <span className="font-bold text-red-600">
-                    -{formatVND(pointsUsed)} VND
+                    -{formatVND(pointsDiscount)} VND
                   </span>
                 </div>
               </>
@@ -2557,6 +2616,15 @@ function SearchPageContent() {
                 <p className="text-muted-foreground">
                   No valid flights found for the selected dates.
                 </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-6 gap-2"
+                  onClick={() => setSearched(false)}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to search
+                </Button>
               </Card>
             ) : (
               roundFlights.map((combo, index) => {
@@ -2751,6 +2819,15 @@ function SearchPageContent() {
                   No flights match your search. Try leaving airports blank to see
                   all available flights.
                 </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-6 gap-2"
+                  onClick={() => setSearched(false)}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to search
+                </Button>
               </Card>
             ) : (
               filteredFlights.map((flight) => {

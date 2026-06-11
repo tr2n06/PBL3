@@ -34,7 +34,6 @@ export async function createFlight(payload: {
   arrivalDate: string;
   arrivalTime: string;
   status: Flight["status"];
-  price?: number;
 }) {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/flights`,

@@ -18,6 +18,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getCurrentUser } from "@/lib/profile-api";
 
+function clearStoredAuth() {
+  localStorage.removeItem("userName");
+  localStorage.removeItem("userEmail");
+  localStorage.removeItem("userRole");
+  localStorage.removeItem("vflight_user_points");
+}
+
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
@@ -44,10 +51,7 @@ export function Header() {
   const [userPoints, setUserPoints] = useState<number | null>(null);
 
   const handleLogout = () => {
-    localStorage.removeItem("userName");
-    localStorage.removeItem("userEmail");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("vflight_user_points");
+    clearStoredAuth();
     setUserName(null);
     setUserEmail(null);
     setUserRole(null);
@@ -58,22 +62,30 @@ export function Header() {
   useEffect(() => {
     const email = localStorage.getItem("userEmail");
     const role  = localStorage.getItem("userRole");
+    if (!email || !role) {
+      clearStoredAuth();
+      setUserEmail(null);
+      setUserRole(null);
+      return;
+    }
+
     setUserEmail(email);
     setUserRole(role);
-
-    if (email && role) {
-      getCurrentUser()
-        .then((me) => {
-          setUserName(me.fullName);
-          if (me.availablePoints !== undefined) {
-            setUserPoints(me.availablePoints);
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to fetch user profile in header:", err);
-          handleLogout();
-        });
-    }
+    getCurrentUser()
+      .then((me) => {
+        setUserName(me.fullName);
+        if (me.availablePoints !== undefined) {
+          setUserPoints(me.availablePoints);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch user profile in header:", err);
+        clearStoredAuth();
+        setUserName(null);
+        setUserEmail(null);
+        setUserRole(null);
+        setUserPoints(null);
+      });
   }, []);
 
   const dashboardHref =

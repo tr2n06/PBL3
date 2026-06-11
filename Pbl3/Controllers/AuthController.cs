@@ -43,6 +43,26 @@ namespace Pbl3.Controllers
             return Ok(new { message = mess });
         }
 
+        [HttpPost("employees")]
+        public async Task<IActionResult> CreateEmployee(RegisterDTO dto)
+        {
+            try
+            {
+                string mess = await service.register(dto, "Staff");
+
+                if (mess == "Invalid user type" || mess == "Staff limit reached")
+                {
+                    return BadRequest(new { error = mess });
+                }
+
+                return Ok(new { message = mess });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
         [HttpPost("login")]
         public IActionResult Login(LoginRequestDTO dto)
         {

@@ -56,3 +56,65 @@ The statement has been terminated.
 ClientConnectionId:741c0096-5a8e-49a7-95ec-1bd5651f0663
 Error Number:547,State:0,Class:16
 --------------------------------------------------
+[2026-06-09 15:18:04] ERROR in CompletePayment: System.InvalidOperationException: The instance of entity type 'Baggage' cannot be tracked because another instance with the key value '{codeBaggage: BG1822090620260001}' is already being tracked. When attaching existing entities, ensure that only one entity instance with a given key value is attached.
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.IdentityMap`1.ThrowIdentityConflict(InternalEntityEntry entry)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.IdentityMap`1.Add(TKey key, InternalEntityEntry entry, Boolean updateDuplicate)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.IdentityMap`1.Add(TKey key, InternalEntityEntry entry)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.NullableKeyIdentityMap`1.Add(InternalEntityEntry entry)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.StartTracking(InternalEntityEntry entry)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.InternalEntityEntry.OnStateChanging(EntityState newState)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.InternalEntryBase.SetEntityState(EntityState oldState, EntityState newState, Boolean acceptChanges, Boolean modifyProperties)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.InternalEntityEntry.SetEntityStateAsync(EntityState entityState, Boolean acceptChanges, Boolean modifyProperties, Nullable`1 forceStateWhenUnknownKey, Nullable`1 fallbackState, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.EntityGraphAttacher.PaintActionAsync(EntityEntryGraphNode`1 node, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.EntityEntryGraphIterator.TraverseGraphAsync[TState](EntityEntryGraphNode`1 node, Func`3 handleNode, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.EntityGraphAttacher.AttachGraphAsync(InternalEntityEntry rootEntry, EntityState targetState, EntityState storeGeneratedWithKeySetTargetState, Boolean forceStateWhenUnknownKey, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.AddAsync[TEntity](TEntity entity, CancellationToken cancellationToken)
+   at Pbl3.Repositories.Implementation.BaggageRepository.insertBaggage(BaggageRequestDTO dto) in D:\C_Sharp\Pbl3\Pbl3\Repositories\Implementation\BaggageRepository.cs:line 18
+   at Pbl3.Services.Implementation.BaggageService.insertBaggage(BaggageRequestDTO dto) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\BaggageService.cs:line 17
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 348
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-09 15:27:43] ERROR in CompletePayment: System.InvalidOperationException: Seat 6B is already booked on flight VN0002 at 11/06/2026 7:00 SA. Please select a different seat.
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 206
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-09 15:35:14] ERROR in CompletePayment: System.InvalidOperationException: Seat 6B is already booked on flight VN0002 at 11/06/2026 7:00 SA. Please select a different seat.
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 206
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-09 15:40:04] ERROR in CompletePayment: System.InvalidOperationException: Seat 6B is already booked on flight VN0002 at 11/06/2026 7:00 SA. Please select a different seat.
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 206
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-09 15:40:15] ERROR in CompletePayment: System.InvalidOperationException: Seat 6B is already booked on flight VN0002 at 11/06/2026 7:00 SA. Please select a different seat.
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 206
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-10 01:17:05] ERROR in CompletePayment: System.InvalidOperationException: The instance of entity type 'Baggage' cannot be tracked because another instance with the key value '{codeBaggage: BG1708100620260001}' is already being tracked. When attaching existing entities, ensure that only one entity instance with a given key value is attached.
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.IdentityMap`1.ThrowIdentityConflict(InternalEntityEntry entry)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.IdentityMap`1.Add(TKey key, InternalEntityEntry entry, Boolean updateDuplicate)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.IdentityMap`1.Add(TKey key, InternalEntityEntry entry)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.NullableKeyIdentityMap`1.Add(InternalEntityEntry entry)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.StartTracking(InternalEntityEntry entry)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.InternalEntityEntry.OnStateChanging(EntityState newState)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.InternalEntryBase.SetEntityState(EntityState oldState, EntityState newState, Boolean acceptChanges, Boolean modifyProperties)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.InternalEntityEntry.SetEntityStateAsync(EntityState entityState, Boolean acceptChanges, Boolean modifyProperties, Nullable`1 forceStateWhenUnknownKey, Nullable`1 fallbackState, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.EntityGraphAttacher.PaintActionAsync(EntityEntryGraphNode`1 node, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.EntityEntryGraphIterator.TraverseGraphAsync[TState](EntityEntryGraphNode`1 node, Func`3 handleNode, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.EntityGraphAttacher.AttachGraphAsync(InternalEntityEntry rootEntry, EntityState targetState, EntityState storeGeneratedWithKeySetTargetState, Boolean forceStateWhenUnknownKey, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.AddAsync[TEntity](TEntity entity, CancellationToken cancellationToken)
+   at Pbl3.Repositories.Implementation.BaggageRepository.insertBaggage(BaggageRequestDTO dto) in D:\C_Sharp\Pbl3\Pbl3\Repositories\Implementation\BaggageRepository.cs:line 18
+   at Pbl3.Services.Implementation.BaggageService.insertBaggage(BaggageRequestDTO dto) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\BaggageService.cs:line 17
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 395
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-10 01:17:12] ERROR in CompletePayment: System.InvalidOperationException: Seat 2A is already booked on flight VN0002 at 11/06/2026 7:00 SA. Please select a different seat.
+   at Pbl3.Services.Implementation.PaymentService.ValidateRequestedSeatsAsync(CompletePaymentRequestDTO request, String codeFlight, DateOnly departureDate, TimeOnly departureTime, String returnCodeFlight, Nullable`1 returnDepartureDate, Nullable`1 returnDepartureTime, Int32 firstAdultIndex) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 98
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 206
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------
+[2026-06-10 01:17:21] ERROR in CompletePayment: System.InvalidOperationException: Seat 2A is already booked on flight VN0002 at 11/06/2026 7:00 SA. Please select a different seat.
+   at Pbl3.Services.Implementation.PaymentService.ValidateRequestedSeatsAsync(CompletePaymentRequestDTO request, String codeFlight, DateOnly departureDate, TimeOnly departureTime, String returnCodeFlight, Nullable`1 returnDepartureDate, Nullable`1 returnDepartureTime, Int32 firstAdultIndex) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 98
+   at Pbl3.Services.Implementation.PaymentService.ProcessPaymentCompleteAsync(CompletePaymentRequestDTO request, Nullable`1 loggedInUserId, String userType, String clientHost) in D:\C_Sharp\Pbl3\Pbl3\Services\Implementation\PaymentService.cs:line 206
+   at Pbl3.Controllers.PaymentsController.CompletePayment(CompletePaymentRequestDTO request) in D:\C_Sharp\Pbl3\Pbl3\Controllers\PaymentsController.cs:line 53
+--------------------------------------------------

@@ -34,6 +34,7 @@ namespace Pbl3.Repositories.Implementation
                 name = p.name,
                 gender = gen,
                 dateOfBirth = p.dateOfBirth,
+                address = p.address,
                 phoneNumber = p.phoneNumber,
                 email = p.email,
                 pointReward = 0,
@@ -54,7 +55,7 @@ namespace Pbl3.Repositories.Implementation
                                    select u).FirstOrDefaultAsync();
             if (staff != null) throw new Exception("This number phone existed");
 
-            int current = await context.Staff.MaxAsync(u => u.id) + 1;
+            int current = (await context.Staff.MaxAsync(u => (int?)u.id) ?? 10) + 1;
             if (current > 50) return "Staff limit reached";
             await context.User.AddAsync(new Staff
             {
@@ -62,6 +63,7 @@ namespace Pbl3.Repositories.Implementation
                 name = p.name,
                 gender = gen,
                 dateOfBirth = p.dateOfBirth,
+                address = p.address,
                 phoneNumber = p.phoneNumber,
                 email = p.email,
                 joinedDate = DateOnly.FromDateTime(DateTime.Now),

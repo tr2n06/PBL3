@@ -12,6 +12,16 @@ export type EmployeeItem = {
   role: string;
 };
 
+export type CreateEmployeeRequest = {
+  name: string;
+  gender?: string;
+  dateOfBirth?: string;
+  address?: string;
+  phoneNumber: string;
+  email: string;
+  password: string;
+};
+
 export async function getEmployees() {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/employees`,
@@ -30,6 +40,27 @@ export async function getEmployees() {
   } 
 
   return res.json() as Promise<EmployeeItem[]>;
+}
+
+export async function createEmployee(payload: CreateEmployeeRequest) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/employees`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Failed to create employee");
+  }
+
+  return res.json() as Promise<{ message: string }>;
 }
 
 export async function blockEmployee(employeeId: number) {

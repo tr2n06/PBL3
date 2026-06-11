@@ -119,7 +119,7 @@ export default function CustomerPaymentPage() {
       };
       setBooked(nextBooked);
     } else {
-      router.push("/customer/booking");
+      router.push("/employee/booking");
     }
   }, [router]);
 
@@ -368,7 +368,7 @@ export default function CustomerPaymentPage() {
                     className="h-12 px-6 gap-2 bg-[#f5d020] hover:bg-yellow-500 text-gray-900 font-bold shadow-lg shadow-yellow-200"
                     asChild
                   >
-                    <Link href="/customer/my-tickets">
+                    <Link href="/employee/tickets">
                       <Ticket className="w-4 h-4" /> View My Tickets
                     </Link>
                   </Button>
@@ -601,7 +601,7 @@ export default function CustomerPaymentPage() {
                       Points Used
                     </span>
                     <span className="font-bold text-red-500">
-                      -{formatVND(booked.pointsUsed)} VND
+                      -{formatVND(booked.pointsUsed * 100000)} VND
                     </span>
                   </div>
                 )}

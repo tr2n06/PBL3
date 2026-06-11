@@ -1,10 +1,13 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import {
   getEmployees,
+  createEmployee,
   blockEmployee,
   unblockEmployee,
+  type CreateEmployeeRequest,
   type EmployeeItem,
 } from "@/lib/employees-api";
 import {
@@ -16,8 +19,16 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -45,6 +56,7 @@ import {
   MoreHorizontal,
   UserX,
   UserCheck,
+  UserPlus,
   Mail,
   Phone,
   Calendar,
@@ -54,12 +66,25 @@ import {
   User,
 } from "lucide-react";
 
+const EMPTY_EMPLOYEE_FORM: CreateEmployeeRequest = {
+  name: "",
+  gender: "Male",
+  dateOfBirth: "",
+  address: "",
+  phoneNumber: "",
+  email: "",
+  password: "",
+};
 
 export default function EmployeesPage() {
   const [searchQuery, setSearchQuery] = useState("");
 const [selectedEmployee, setSelectedEmployee] = useState<EmployeeItem | null>(null);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createForm, setCreateForm] =
+    useState<CreateEmployeeRequest>(EMPTY_EMPLOYEE_FORM);
+  const [creatingEmployee, setCreatingEmployee] = useState(false);
   const [employees, setEmployees] = useState<EmployeeItem[]>([]);
 const [loading, setLoading] = useState(true);
 
@@ -77,6 +102,31 @@ useEffect(() => {
 
   loadEmployees();
 }, []);
+
+  const handleCreateEmployee = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setCreatingEmployee(true);
+
+    try {
+      await createEmployee({
+        ...createForm,
+        name: createForm.name.trim(),
+        email: createForm.email.trim(),
+        phoneNumber: createForm.phoneNumber.trim(),
+        address: createForm.address?.trim(),
+        dateOfBirth: createForm.dateOfBirth || undefined,
+      });
+      const data = await getEmployees();
+      setEmployees(data.filter((u) => u.role === "employee"));
+      setCreateForm(EMPTY_EMPLOYEE_FORM);
+      setShowCreateDialog(false);
+    } catch (error) {
+      console.error("Create employee failed:", error);
+      alert(error instanceof Error ? error.message : "Create employee failed");
+    } finally {
+      setCreatingEmployee(false);
+    }
+  };
 
   const filteredEmployees = employees.filter(
     (emp) =>
@@ -184,14 +234,24 @@ if (loading) {
                 Manage employee accounts and permissions
               </CardDescription>
             </div>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employees..."
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button
+                type="button"
+                className="gap-2"
+                onClick={() => setShowCreateDialog(true)}
+              >
+                <UserPlus className="h-4 w-4" />
+                Add Employee
+              </Button>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search employees..."
+                  className="pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -273,6 +333,144 @@ if (loading) {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Create Employee Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Add Employee</DialogTitle>
+            <DialogDescription>
+              Create a new staff account for the booking system.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateEmployee} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="employee-name">Full name</Label>
+                <Input
+                  id="employee-name"
+                  required
+                  value={createForm.name}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Gender</Label>
+                <Select
+                  value={createForm.gender || "Male"}
+                  onValueChange={(value) =>
+                    setCreateForm((prev) => ({ ...prev, gender: value }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="employee-dob">Date of birth</Label>
+                <Input
+                  id="employee-dob"
+                  type="date"
+                  value={createForm.dateOfBirth || ""}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      dateOfBirth: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="employee-phone">Phone</Label>
+                <Input
+                  id="employee-phone"
+                  required
+                  inputMode="numeric"
+                  value={createForm.phoneNumber}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      phoneNumber: e.target.value.replace(/\D/g, ""),
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="employee-email">Email</Label>
+                <Input
+                  id="employee-email"
+                  required
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      email: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="employee-address">Address</Label>
+                <Input
+                  id="employee-address"
+                  value={createForm.address || ""}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      address: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="employee-password">Password</Label>
+                <Input
+                  id="employee-password"
+                  required
+                  type="password"
+                  minLength={6}
+                  value={createForm.password}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      password: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreateDialog(false)}
+                disabled={creatingEmployee}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creatingEmployee}>
+                {creatingEmployee ? "Creating..." : "Create Employee"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Block Confirmation Dialog */}
       <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>

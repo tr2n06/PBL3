@@ -32,7 +32,6 @@ function CheckoutContent() {
 
         setLoading(true);
         try {
-            const backendBase = backend.replace(/\/$/, '');
             const payload = {
                 OrderId: orderId,
                 orderId: orderId,
@@ -46,23 +45,14 @@ function CheckoutContent() {
                 amount: parseInt(amount)
             };
 
-            let response = await fetch("/api/payment/confirm-payment", {
+            const appBaseUrl = window.location.origin.replace(/\/$/, '');
+            const response = await fetch(`${appBaseUrl}/api/payment/confirm-payment`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
             });
-
-            if (!response.ok && backendBase) {
-                response = await fetch(`${backendBase}/api/payment/confirm-payment`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-            }
 
             if (!response.ok) {
                 const errText = await response.text();

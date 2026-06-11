@@ -38,14 +38,28 @@ namespace Pbl3.Services.Implementation
         }
         public async Task<string> getKey(string codeTicket)
         {
-            // Truncate ticket code prefix (seconds) if necessary to fit varchar(19) database limit
             string ticketPart = codeTicket.Length > 15 ? codeTicket.Substring(2) : codeTicket;
-            string code = "BG" + ticketPart;
-            int num = (await repository.getBaggageByTicketCode(codeTicket)).Count;
-            num++;
-            if (num < 10) code += "0" + num;
-            else code += num;
-            return code;
+            string prefix = "BG" + ticketPart;
+            if (prefix.Length > 17)
+            {
+                prefix = prefix.Substring(0, 17);
+            }
+
+            var existingCodes = (await repository.getBaggageByTicketCode(codeTicket))
+                .Select(b => b.codeBaggage)
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            for (int num = 1; num <= 99; num++)
+            {
+                string code = prefix + num.ToString("D2");
+                if (!existingCodes.Contains(code))
+                {
+                    return code;
+                }
+            }
+
+            throw new InvalidOperationException($"Cannot generate baggage code for ticket {codeTicket}.");
         }
         public async Task<int> getNumberOfCheckedBaggage(string codeTicket)
         {
